@@ -20,6 +20,21 @@ const CATS = {
 };
 const TILE_ORDER = ["indoor", "veg", "fruit", "flower", "herbal", "grain", "garden", "native"];
 
+// 틀린 내용 신고: 어떤 식물의 어느 칸인지 채운 GitHub 이슈 작성 화면을 연다 (GitHub 계정 필요)
+const ISSUES = "https://github.com/dkaahs123123-lang/plant-care-guide/issues/new";
+const reportBtn = card => `<button type="button" class="report" data-card="${esc(card)}">틀린 내용 신고</button>`;
+document.addEventListener("click", e => {
+  const b = e.target.closest("button.report");
+  if (!b) return;
+  const plant = [document.querySelector(".sheet-head h1")?.textContent, document.querySelector(".sci-line i")?.textContent].filter(Boolean).join(" / ");
+  const title = `[틀린 내용] ${plant || "도감"} - ${b.dataset.card}`;
+  const body = [
+    `식물: ${plant}`, `칸: ${b.dataset.card}`, `페이지: ${location.href}`, "",
+    "무엇이 틀렸나요?", "", "", "올바른 내용과 근거(출처 링크나 자료 이름):", "", "",
+  ].join("\n");
+  window.open(`${ISSUES}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`, "_blank", "noopener");
+});
+
 // 정보 칸마다 어느 나라, 어떤 환경을 기준으로 한 자료인지 보여 준다.
 const KMA_CLIMATE = "https://www.weather.go.kr/w/climate/statistics/region.do";
 const REGION = {
@@ -27,6 +42,7 @@ const REGION = {
   grow: ["한국", "야외 정원", "한국수목원정원관리원이 우리나라 정원에 심는 것을 기준으로 정리한 자료입니다."],
   pests: ["한국", "농가·텃밭", "우리나라 농작물에서 생기는 병해충을 정리한 자료입니다."],
   kfs: ["한국", "자생지", "꽃 피는 달 등은 우리나라 산과 들에서 자랄 때를 기준으로 합니다."],
+  cases: ["한국", "농가 현장", "실제 농가에서 생긴 문제를 그 현장의 날씨·흙·재배 방법과 함께 진단한 기록이라, 같은 증상이라도 원인이 다를 수 있습니다."],
   smart: ["한국", "스마트팜(온실)", "농촌진흥청이 우리나라 스마트팜 우수 농가의 환경 설정을 바탕으로 정리한 값입니다."],
   web: ["미국 노스캐롤라이나", "야외",
     `노스캐롤라이나는 대부분 여름이 덥고 습하며 겨울이 온화한 기후(쾨펜 Cfa)이고, 미국 농무부 추위 구역으로 산지 5b부터 해안 9a까지입니다 (<a href="https://planthardiness.ars.usda.gov" target="_blank" rel="noopener">USDA 내한성 지도</a>). ` +
@@ -95,6 +111,7 @@ function badges(v) {
     v.grow && `<span class="badge">키우는 방법</span>`,
     !v.grow && v.web && `<span class="badge web">인터넷 재배 정보</span>`,
     (v.nd || v.ni) && `<span class="badge amber">병해충 ${fmt(v.nd + v.ni)}</span>`,
+    v.nc && `<span class="badge web">현장 사례 ${fmt(v.nc)}</span>`,
   ].filter(Boolean).join(" ");
 }
 
@@ -122,6 +139,7 @@ async function route() {
     else if (view === "f" && a) await renderFamily(a);
     else if (view === "c" && CATS[a]) renderCategory(a);
     else if (view === "symptom") await renderSymptom(a || "");
+    else if (view === "fixes") await renderFixes();
     else if (view === "families") await renderFamilies();
     else { input.value = ""; await renderHome(); }
   } catch (err) {
@@ -210,6 +228,15 @@ const SYMPTOM_GROUPS = [
   ["끈적거려요", ["감로", "끈적"]],
   ["혹이 생겨요", ["혹이", "혹을", "혹 모양", "암종"]],
   ["벌레가 보여요", ["유충", "성충", "애벌레", "약충"]],
+  // 아래는 병해충이 아닌 생리장해(환경·양분 문제)를 현장 진단 사례에서 찾기 위한 묶음
+  ["속이 차지 않아요", ["결구", "속이 차", "속이 비", "속잎"]],
+  ["잎끝이나 가장자리가 타요", ["잎끝", "팁번", "가장자리", "엽소", "갈변"]],
+  ["열매가 갈라지거나 모양이 이상해요", ["열과", "갈라", "기형과", "기형"]],
+  ["꽃·열매가 떨어지거나 안 맺혀요", ["낙화", "낙과", "착과", "결실", "수정"]],
+  ["잘 안 자라요", ["생육부진", "생육 부진", "생육이 불량", "생육불량", "왜화", "자라지"]],
+  ["비료·양분 문제 같아요", ["결핍", "과잉", "양분", "비료", "시비", "염류"]],
+  ["약을 친 뒤에 생겼어요", ["약해", "농약", "제초제", "살포"]],
+  ["추위·더위 피해 같아요", ["저온", "고온", "동해", "냉해", "서리", "일소"]],
 ];
 const SYMPTOM_PARTS = [["잎", ["잎"]], ["줄기", ["줄기", "가지"]], ["열매", ["과실", "열매", "과일"]], ["뿌리", ["뿌리", "지제부"]], ["꽃", ["꽃"]]];
 let OPEN_PEST = "";
@@ -242,14 +269,17 @@ function snippet(text, words) {
 
 async function renderSymptom(crop) {
   const list = await getJSON("data/symptoms.json");
-  const crops = [...new Set(list.map(r => r[1]))].sort(byKo);
+  // 작물은 식물 단위로 묶는다 (가을배추·봄배추 사례도 '배추'로)
+  const plantName = k => CI[k]?.name || CI[k]?.crops?.[0] || list.find(r => r[0] === k)[1];
+  const plants = [...new Set(list.map(r => r[0]))].map(k => [k, plantName(k)]).sort((a, b) => byKo(a[1], b[1]));
+  const chosen = crop && (plants.find(([k, n]) => n === crop || CI[k]?.crops?.includes(crop)) || [])[0];
   app.innerHTML = `
     <nav class="crumbs"><a href="#/">처음으로</a></nav>
     <section class="sheet-head"><h1 class="ko-title">증상으로 병해충 찾기</h1>
-      <div class="author">보이는 증상을 고르거나 적으면, 농촌진흥청 국가농작물병해충관리시스템(NCPMS)의 증상 설명에서 맞는 병과 해충을 찾아 드립니다.</div></section>
+      <div class="author">보이는 증상을 고르거나 적으면 맞는 병해충과, 비슷한 문제를 농촌진흥청이 현장에서 진단한 사례를 찾아 드립니다. 병이 아니라 양분·날씨·약 때문에 생긴 문제(생리장해)도 사례에서 찾을 수 있어요.</div></section>
     <section class="card symptom-form">
       <label class="field">어떤 작물인가요?
-        <select id="sym-crop"><option value="">모든 작물</option>${crops.map(c => `<option${c === crop ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+        <select id="sym-crop"><option value="">모든 작물</option>${plants.map(([k, n]) => `<option value="${esc(k)}"${k === chosen ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
       <div class="field">어디에 생겼나요?<div class="chips" id="sym-parts">${SYMPTOM_PARTS.map(([l], i) => `<button type="button" class="chip" data-part="${i}" aria-pressed="false">${l}</button>`).join("")}</div></div>
       <div class="field">어떤 모습인가요?<div class="chips" id="sym-groups">${SYMPTOM_GROUPS.map(([l], i) => `<button type="button" class="chip" data-group="${i}" aria-pressed="false">${l}</button>`).join("")}</div></div>
       <label class="field">직접 적어도 돼요<input id="sym-text" class="filter" type="search" placeholder="예: 잎 뒷면에 흰 가루"></label>
@@ -265,7 +295,7 @@ async function renderSymptom(crop) {
     if (!terms.length) { box.innerHTML = `<p class="muted small">증상을 고르면 결과가 여기에 나옵니다.</p>`; return; }
     // 일부만 맞는 결과는 '잎'처럼 부위만 맞은 것은 빼고, 모습(증상)이 하나라도 맞은 것만 보여 준다
     const looks = terms.filter(t => !t.part);
-    const scored = list.filter(r => !c || r[1] === c).map(r => {
+    const scored = list.filter(r => !c || r[0] === c).map(r => {
       const hit = terms.filter(t => t.words.some(w => r[4].includes(w)));
       return { r, hit, all: hit.length === terms.length };
     }).filter(x => x.hit.length && (x.all || !looks.length || x.hit.some(t => !t.part)));
@@ -281,13 +311,15 @@ async function renderSymptom(crop) {
         <span class="muted small">찾은 조건: ${terms.map(t => esc(t.label)).join(", ")}${full.length > 50 ? " · 처음 50건" : ""}</span></div>
       ${shown.length ? `<div class="list">${shown.map(({ r, hit }) => {
         const v = CI[r[0]] || {};
-        const href = r[0].startsWith("g:") ? `#/g/${encodeURIComponent(v.g)}` : `${taxonHref(v.g, r[0])}/${encodeURIComponent(r[3])}`;
+        const open = r[5] ? `case-${r[5]}` : r[3];
+        const href = r[0].startsWith("g:") ? `#/g/${encodeURIComponent(v.g)}` : `${taxonHref(v.g, r[0])}/${encodeURIComponent(open)}`;
+        const badge = r[2] === "병" ? "amber" : r[2] === "현장 사례" ? "web" : "";
         return `<a class="row" href="${href}">
-          <span class="title"><span class="badge ${r[2] === "병" ? "amber" : ""}">${r[2]}</span> <b class="ko">${esc(r[3])}</b> <span class="sci-s">${esc(r[1])}</span></span>
+          <span class="title"><span class="badge ${badge}">${r[2]}</span> <b class="ko">${esc(r[3])}</b> <span class="sci-s">${esc(r[1])}</span></span>
           <span class="side small">${full.length ? "" : `${hit.length}/${terms.length} 조건`}</span>
           <span class="note">${snippet(r[4], words)}</span></a>`;
       }).join("")}</div>` : `<div class="empty">맞는 병해충을 찾지 못했습니다. 조건을 줄이거나 다른 말로 적어 보세요.</div>`}
-      <p class="src">증상 설명 출처: 농촌진흥청 국가농작물병해충관리시스템(NCPMS) · 원문 그대로</p>`;
+      <p class="src">출처: 병·해충 증상은 농촌진흥청 국가농작물병해충관리시스템(NCPMS), 현장 사례는 농촌진흥청 농사로 현장기술지원 사례 · 모두 원문 그대로</p>`;
   };
   document.getElementById("sym-crop").addEventListener("change", run);
   let t;
@@ -301,6 +333,23 @@ async function renderSymptom(crop) {
     b.setAttribute("aria-pressed", set.has(i));
     run();
   });
+}
+
+// ---------- 고친 내역 ----------
+async function renderFixes() {
+  const list = (await optional(getJSON("data/corrections.json"))) || [];
+  app.innerHTML = `
+    <nav class="crumbs"><a href="#/">처음으로</a></nav>
+    <section class="sheet-head"><h1 class="ko-title">고친 내역</h1>
+      <div class="author">신고나 점검으로 틀린 것이 확인되어 감추거나 고친 정보입니다. 출처 자료 자체가 틀린 경우에는 그 기관에도 알리고 있습니다.</div></section>
+    ${list.length ? `<div class="list">${list.map(f => {
+      const v = CI[f.key];
+      const href = v ? careHref(f.key, v) : "#/";
+      return `<a class="row" href="${href}"><span class="title"><b class="ko">${esc(v?.name || f.target)}</b> <span class="sci-s">${esc(f.part)}${f.item !== "*" ? ` · ${esc(f.item)}` : ""}</span></span>
+        <span class="side small">${esc(f.action)}</span><span class="note">${esc(f.reason)}</span></a>`;
+    }).join("")}</div>` : `<div class="empty">아직 고친 내역이 없습니다.</div>`}
+    <section class="card"><h2>틀린 내용을 발견하셨나요?</h2>
+      <p>식물 화면의 각 정보 칸 아래에 있는 <b>틀린 내용 신고</b> 버튼을 눌러 주세요. 확인되면 바로 감추거나 고치고, 이 페이지에 이유와 함께 남깁니다. 신고하려면 GitHub 계정이 필요합니다.</p></section>`;
 }
 
 // ---------- 분류별 둘러보기 ----------
@@ -510,6 +559,7 @@ async function renderTaxon(genus, id) {
         <li id="gbif-src">다른 이름과 사진: GBIF (자료마다 라이선스 표시)</li>
         <li><a href="https://powo.science.kew.org/results?q=${encodeURIComponent(name)}" target="_blank" rel="noopener">POWO(큐 왕립식물원)에서 자라는 지역 확인</a> · <a href="https://scholar.google.com/scholar?q=%22${encodeURIComponent(name)}%22" target="_blank" rel="noopener">관련 논문 검색</a></li>
       </ul>
+      <p class="small">이름이나 분류가 틀렸나요? ${reportBtn("이름·분류")}</p>
     </section>`;
 
   renderCare(row[0], genus);
@@ -544,7 +594,7 @@ function gardenCard(g) {
         <dl class="prose">
           ${[["기르는 법", it.care], ["정원에 심는 법", it.garden], ["특징", it.feature]].filter(([, v]) => v).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}
         </dl>`).join("")}
-      <div class="src">출처: ${esc(g.source)} · 확인일 ${esc(g.retrieved)} · 원문을 고치지 않고 실었습니다 · <a href="${esc(g.url)}" target="_blank" rel="noopener">자료 안내</a></div>
+      <div class="src">출처: ${esc(g.source)} · 확인일 ${esc(g.retrieved)} · 원문을 고치지 않고 실었습니다 · <a href="${esc(g.url)}" target="_blank" rel="noopener">자료 안내</a> ${reportBtn("키우는 방법(정원식물)")}</div>
     </section>`;
 }
 
@@ -567,7 +617,7 @@ function airCard(a) {
           ${it.effects.length ? `<dt>공기정화 실험 등급</dt><dd>${esc(it.effects.join(" · "))}</dd>` : ""}
         </dl>`).join("")}
       <p class="small genus-note">공기정화 효과는 밀폐된 실험 공간에서 잰 값입니다. 실제 집에서는 화분 몇 개의 효과가 환기에 비해 매우 작다는 연구가 있습니다 (Cummings &amp; Waring, 2020, <a href="https://doi.org/10.1038/s41370-019-0175-9" target="_blank" rel="noopener">doi:10.1038/s41370-019-0175-9</a>).</p>
-      <div class="src">출처: ${esc(a.source)} · ${esc(a.license)} · 확인일 ${esc(a.retrieved)} · 원문을 고치지 않고 항목별로 나눠 실었습니다 · <a href="${esc(a.url)}" target="_blank" rel="noopener">자료 안내</a><br>자료와 학명의 연결: ${esc(a.mapping)}</div>
+      <div class="src">출처: ${esc(a.source)} · ${esc(a.license)} · 확인일 ${esc(a.retrieved)} · 원문을 고치지 않고 항목별로 나눠 실었습니다 · <a href="${esc(a.url)}" target="_blank" rel="noopener">자료 안내</a><br>자료와 학명의 연결: ${esc(a.mapping)} ${reportBtn("실내에서 키우는 방법")}</div>
     </section>`;
 }
 
@@ -591,9 +641,52 @@ function kfsCard(k, mainName) {
       ${regionLine("kfs")}
       ${kfsItem(main, false)}
       ${rest.length ? `<details class="more-items"><summary>함께 연결된 품종·변종 ${rest.length}개 더 보기</summary>${rest.map(it => kfsItem(it, true)).join("")}</details>` : ""}
-      <div class="src">출처: ${esc(k.source)} · 자료 기준일 ${esc(k.basis)} · <a href="${esc(k.url)}" target="_blank" rel="noopener">자료 안내</a></div>
+      <div class="src">출처: ${esc(k.source)} · 자료 기준일 ${esc(k.basis)} · <a href="${esc(k.url)}" target="_blank" rel="noopener">자료 안내</a> ${reportBtn("우리나라 식물 정보")}</div>
     </section>`;
 }
+
+// 우리 동네 겨울나기: 식물이 견디는 추위(USDA 구역)와 기상청 관측소의 겨울 최저기온 30년 평균을 비교한다.
+let CLIMATE = null, WINTER = null;
+const getRegion = () => { try { return localStorage.getItem("region") || "108"; } catch { return "108"; } };
+function winterVerdict(st) {
+  const diff = st[2] - WINTER.zoneC;
+  if (diff >= 2.8) return ["ok", "밖에서 겨울을 날 수 있는 추위입니다"];
+  if (diff >= 0) return ["edge", "견딜 수 있는 한계에 가깝습니다. 추운 해에는 피해가 날 수 있어요"];
+  return ["no", "밖에서 겨울을 나기 어렵습니다. 겨울에는 실내로 들이거나 보온해 주세요"];
+}
+function winterBody() {
+  const st = CLIMATE.stations.find(s => s[0] === getRegion()) || CLIMATE.stations[0];
+  const [cls, text] = winterVerdict(st);
+  const okList = CLIMATE.stations.filter(s => s[2] - WINTER.zoneC >= 0).map(s => s[1]);
+  return `
+    <div class="verdict ${cls}"><b>${esc(st[1])}</b>: ${text}</div>
+    <div class="facts">
+      <div class="fact"><span class="k">${esc(st[1])}의 겨울 최저기온 (30년 평균)</span><span class="v mono">${st[2]}°C · USDA ${esc(st[4])} 구역</span></div>
+      <div class="fact"><span class="k">이 식물이 견디는 추위</span><span class="v mono">약 ${WINTER.zoneC}°C · USDA ${esc(WINTER.zone)} 구역</span></div>
+    </div>
+    <p class="small">${okList.length ? `관측소 ${CLIMATE.stations.length}곳 중 ${okList.length}곳에서 견딜 수 있는 추위입니다: ${esc(okList.slice(0, 30).join(", "))}${okList.length > 30 ? " 등" : ""}` : `우리나라 관측소 ${CLIMATE.stations.length}곳 모두 이 식물이 견디기 어려운 추위가 옵니다.`}</p>`;
+}
+async function winterCard(web) {
+  if (web?.zoneC == null) return "";
+  CLIMATE = CLIMATE || await optional(getJSON("data/climate.json"));
+  if (!CLIMATE?.stations?.length) return "";
+  WINTER = web;
+  const region = getRegion();
+  return `
+    <section class="card">
+      <h2>우리 동네에서 겨울나기</h2>
+      <label class="field small">사는 곳과 가까운 관측소
+        <select id="winter-region">${CLIMATE.stations.map(s => `<option value="${s[0]}"${s[0] === region ? " selected" : ""}>${esc(s[1])}</option>`).join("")}</select></label>
+      <div id="winter-body">${winterBody()}</div>
+      <p class="small muted">미국 농무부(USDA) 추위 구역과 같은 방식으로 비교했습니다. 해마다 가장 추웠던 날 기온의 평균이라 유난히 추운 해에는 더 내려갈 수 있고, 바람·눈·화분에 심었는지에 따라서도 달라집니다.</p>
+      <div class="src">식물 쪽: NC State Plant Toolbox의 USDA 내한성 구역 · 동네 쪽: ${esc(CLIMATE.source)}, ${esc(CLIMATE.basis)} · <a href="${esc(CLIMATE.url)}" target="_blank" rel="noopener">자료 안내</a> ${reportBtn("우리 동네에서 겨울나기")}</div>
+    </section>`;
+}
+document.addEventListener("change", e => {
+  if (e.target.id !== "winter-region") return;
+  try { localStorage.setItem("region", e.target.value); } catch { /* 저장소를 쓸 수 없으면 무시 */ }
+  document.getElementById("winter-body").innerHTML = winterBody();
+});
 
 // 공공기관 자료가 아닌 대학 원예 자료. 정해진 항목 값만 한국어로 옮겼다.
 function webCard(w, name) {
@@ -607,7 +700,29 @@ function webCard(w, name) {
       ${w.facts.length ? `<div class="facts">${w.facts.map(([k, v]) => `<div class="fact"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("")}</div>` : ""}
       ${w.notes.length ? `<dl class="prose">${w.notes.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
       <div class="src">출처: ${esc(w.source)} · 확인일 ${esc(w.retrieved)} · 정해진 항목 값만 한국어로 옮겼고, 목록에 없는 값은 영어 원문 그대로 두었습니다 · <a href="${esc(w.url)}" target="_blank" rel="noopener">원문 보기 (영어)</a><br>
-      다른 곳에서도 확인해 보세요: <a href="https://www.rhs.org.uk/plants/search-results?query=${q}" target="_blank" rel="noopener">영국왕립원예협회(RHS)</a></div>
+      다른 곳에서도 확인해 보세요: <a href="https://www.rhs.org.uk/plants/search-results?query=${q}" target="_blank" rel="noopener">영국왕립원예협회(RHS)</a> ${reportBtn("인터넷 재배 정보")}</div>
+    </section>`;
+}
+
+// 농사로 현장기술지원 사례: 공공누리 제4유형(변경금지)이라 문장을 고치지 않고 그대로 보여 준다.
+function casesCard(c) {
+  const method = it => (it.sections.find(([h]) => h.startsWith("영농현황"))?.[1] || []).find(l => /재배\s*방식/.test(l))?.split(":").pop().trim();
+  return `
+    <section class="card">
+      <h2>현장 진단 사례</h2>
+      ${regionLine("cases")}
+      <p class="small muted">농가에서 "왜 이러는지 모르겠다"고 문의한 문제를 농촌진흥청이 현장에서 조사하고 진단한 기록입니다. 병해충뿐 아니라 양분 부족, 날씨, 약해 같은 생리장해도 들어 있어요. 이름을 누르면 진단 내용이 원문 그대로 나옵니다.</p>
+      <div class="pests">${c.items.map(it => `
+        <details class="pest case-item" data-no="${esc(it.no)}">
+          <summary><b>${esc(it.title)}</b> <span class="muted small">${esc(it.date)} · ${esc(it.region)}${method(it) ? ` · ${esc(method(it))}` : ""}</span></summary>
+          <div class="pest-body"><dl>
+            ${it.sections.map(([h, items]) => `<dt>${esc(h)}</dt><dd>${items.map(esc).join("\n")}</dd>`).join("")}
+          </dl>
+          ${it.omitted ? `<p class="small muted">이름·연락처·주소가 들어 있을 수 있는 줄 ${it.omitted}개는 싣지 않았습니다.</p>` : ""}
+          <a class="small" href="${esc(c.url + it.no)}" target="_blank" rel="noopener">농사로 원문과 사진 보기</a></div>
+        </details>`).join("")}
+      </div>
+      <div class="src">출처: ${esc(c.source)} · ${esc(c.license)} · 확인일 ${esc(c.retrieved)} · 문장은 고치지 않았고, 담당자·농가 정보가 담긴 '개요'와 개인정보가 의심되는 줄, 사진은 싣지 않았습니다. 전체는 원문에서 볼 수 있습니다 ${reportBtn("현장 진단 사례")}</div>
     </section>`;
 }
 
@@ -626,7 +741,7 @@ function pestCard(care, genus, id) {
         <div class="pests">${pests.diseases.map(p => pestItem(p, DISEASE_FIELDS, [p.eng, pests.crops.length > 1 ? p.crop : ""].filter(Boolean).map(esc).join(" · "))).join("")}</div>` : ""}
       ${pests.insects.length ? `<h3 class="sub">해충 <span class="muted small">${pests.insects.length}가지</span></h3>
         <div class="pests">${pests.insects.map(p => pestItem(p, INSECT_FIELDS, [p.sci ? `<i>${esc(p.sci)}</i>` : "", esc(p.family || ""), pests.crops.length > 1 ? esc(p.crop) : ""].filter(Boolean).join(" · "))).join("")}</div>` : ""}
-      <div class="src">출처: ${esc(pests.source)} · 확인일 ${esc(pests.retrieved)} · 원문을 고치지 않고 실었습니다 · <a href="${esc(pests.url)}" target="_blank" rel="noopener">NCPMS 바로가기</a><br>작물명과 학명의 연결: ${esc(care.mapping)}</div>
+      <div class="src">출처: ${esc(pests.source)} · 확인일 ${esc(pests.retrieved)} · 원문을 고치지 않고 실었습니다 · <a href="${esc(pests.url)}" target="_blank" rel="noopener">NCPMS 바로가기</a><br>작물명과 학명의 연결: ${esc(care.mapping)} ${reportBtn("병해충")}</div>
     </section>`;
 }
 
@@ -642,7 +757,7 @@ async function renderCare(id, genus) {
   const src = useGenus ? forGenus : own;
   const genusNote = useGenus && id
     ? `<p class="small genus-note">이 종만의 재배 자료는 없어, <a href="#/g/${encodeURIComponent(genus)}"><i>${esc(genus)}</i> 속</a> 전체에 연결된 자료를 보여 드립니다. 이 종에 꼭 맞지 않을 수 있습니다.</p>` : "";
-  const webHtml = own?.web ? webCard(own.web, CI[id] ? fullName(CI[id].g, CI[id].r) : genus) : "";
+  const webHtml = own?.web ? webCard(own.web, CI[id] ? fullName(CI[id].g, CI[id].r) : genus) + await winterCard(own.web) : "";
   const methods = [
     ["indoor", "실내·화분", src?.air ? genusNote + airCard(src.air) : ""],
     ["field", "노지·정원", (src?.grow ? genusNote + gardenCard(src.grow) : "") + webHtml],
@@ -653,12 +768,15 @@ async function renderCare(id, genus) {
   box.innerHTML = [
     methods.some(m => m[2]) || isCrop(CI[id]) ? methodTabs(methods, CI[id]) : (id ? `<section class="card pending"><h2>키우는 방법</h2><p>이 식물은 아직 재배 자료가 없습니다. 확인되지 않은 정보는 싣지 않습니다.</p></section>` : ""),
     pestSrc ? pestCard(pestSrc, genus, id) : (id && methods.some(m => m[2]) ? `<section class="card pending"><h2>병해충</h2><p>이 식물은 아직 공공기관의 병해충 자료가 없습니다.</p></section>` : ""),
+    own?.cases ? casesCard(own.cases) : "",
     own?.kfs ? kfsCard(own.kfs, CI[id]?.name) : "",
   ].join("");
 
-  // 증상 검색 결과에서 들어왔으면 그 병해충을 펼쳐서 보여 준다
+  // 증상 검색 결과에서 들어왔으면 그 병해충이나 사례를 펼쳐서 보여 준다
   if (OPEN_PEST) {
-    const d = [...box.querySelectorAll("details.pest")].find(x => x.querySelector("summary b")?.textContent === OPEN_PEST);
+    const d = OPEN_PEST.startsWith("case-")
+      ? box.querySelector(`details.case-item[data-no="${CSS.escape(OPEN_PEST.slice(5))}"]`)
+      : [...box.querySelectorAll("details.pest")].find(x => x.querySelector("summary b")?.textContent === OPEN_PEST);
     OPEN_PEST = "";
     if (d) { d.open = true; d.scrollIntoView({ block: "start" }); }
   }
@@ -725,7 +843,7 @@ function smartCard(s) {
         <label>생육 단계 <select id="smart-step">${opts(s.facilities[0].steps, t => t.step)}</select></label>
       </div>
       <div id="smart-table">${smartTable(0, 0)}</div>
-      <div class="src">출처: ${esc(s.source)} · 확인일 ${esc(s.retrieved)} · 시설·단계 이름과 단위는 농촌진흥청 농업기술 데이터 플랫폼 화면을 따랐습니다 · <a href="${esc(s.url)}" target="_blank" rel="noopener">자료 안내</a></div>
+      <div class="src">출처: ${esc(s.source)} · 확인일 ${esc(s.retrieved)} · 시설·단계 이름과 단위는 농촌진흥청 농업기술 데이터 플랫폼 화면을 따랐습니다 · <a href="${esc(s.url)}" target="_blank" rel="noopener">자료 안내</a> ${reportBtn("스마트팜")}</div>
     </section>`;
 }
 document.addEventListener("change", e => {
@@ -765,8 +883,10 @@ async function loadGbif(name, id) {
   const known = new Set([CI[id]?.name, ...(CI[id]?.ko || []), ...(CI[id]?.crops || [])].filter(Boolean));
   try {
     const match = await (await fetch(`${GBIF}/species/match?name=${encodeURIComponent(name)}&kingdom=Plantae&strict=true`)).json();
-    const key = match.acceptedUsageKey || match.usageKey;
-    if (!key || match.matchType === "NONE") throw new Error("no match");
+    // 이름이 정확히 맞을 때만 쓴다. GBIF가 이 이름을 더 넓은 종의 다른 이름으로 묶어 두었더라도(예: 배추 -> Brassica rapa 전체)
+    // 상위 종으로 넘어가지 않고 이 이름으로 기록된 사진과 일반 이름만 가져온다.
+    const key = match.matchType === "EXACT" ? match.usageKey : null;
+    if (!key) throw new Error("no exact match");
     document.getElementById("gbif-src").innerHTML = `다른 이름과 사진: <a href="https://www.gbif.org/species/${key}" target="_blank" rel="noopener">GBIF 종 정보 ${key}</a> (자료마다 라이선스 표시)`;
 
     const [vn, occ] = await Promise.all([
@@ -785,11 +905,14 @@ async function loadGbif(name, id) {
       + (names.length ? `<span class="muted small">다른 이름 (GBIF)</span>${names.slice(0, 8).map(v => `<span title="출처: ${esc(v.source || "GBIF")}">${esc(v.vernacularName)}</span>`).join("")}` : "");
 
     const pics = [];
-    for (const o of occ.results || []) {
+    // 자라는 모습을 찍은 관찰 사진을 앞에, 말린 식물 표본 사진을 뒤에 둔다
+    const isSpecimen = o => /SPECIMEN/.test(o.basisOfRecord || "");
+    const ordered = (occ.results || []).slice().sort((a, b) => isSpecimen(a) - isSpecimen(b));
+    for (const o of ordered) {
       for (const m of o.media || []) {
         const lic = m.license || o.license || "";
         if (m.type !== "StillImage" || !m.identifier || !OPEN_LICENSE.test(lic)) continue;
-        pics.push({ url: m.identifier, lic, who: m.rightsHolder || m.creator || o.recordedBy || "", occ: o.key, where: o.country || "" });
+        pics.push({ url: m.identifier, lic, who: m.rightsHolder || m.creator || o.recordedBy || "", occ: o.key, where: o.country || "", specimen: isSpecimen(o) });
         break;
       }
       if (pics.length >= 6) break;
@@ -797,17 +920,19 @@ async function loadGbif(name, id) {
     photos.className = "photos";
     photos.innerHTML = pics.length ? pics.map(p => `
       <figure class="photo">
-        <a href="https://www.gbif.org/occurrence/${p.occ}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="${esc(CI[id]?.name || name)} 관찰 사진" loading="lazy" referrerpolicy="no-referrer"></a>
-        <figcaption>${p.where ? `<b>${esc(countryKo(p.where))}</b>에서 촬영 · ` : ""}${esc(p.who)} · ${esc(licenseLabel(p.lic))}</figcaption>
+        <a href="https://www.gbif.org/occurrence/${encodeURIComponent(p.occ)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="${esc(CI[id]?.name || name)} 관찰 사진" loading="lazy" referrerpolicy="no-referrer"></a>
+        <figcaption>${p.specimen ? `<b>말린 표본</b> · ` : ""}${p.where ? `<b>${esc(countryKo(p.where))}</b>에서 ${p.specimen ? "채집" : "촬영"} · ` : ""}${esc(p.who)} · ${esc(licenseLabel(p.lic))}</figcaption>
       </figure>`).join("")
-      : `<p class="small muted">자유롭게 쓸 수 있는 관찰 사진이 아직 없습니다.</p>`;
+      : `<p class="small muted">이 이름으로 기록된, 자유롭게 쓸 수 있는 관찰 사진이 아직 없습니다.</p>`;
     photos.insertAdjacentHTML("afterend", pics.length ? `<p class="src">사진은 여러 나라 사람들이 GBIF에 올린 관찰 기록입니다. 찍은 나라의 기후에 따라 모습이 다를 수 있고, 식물을 잘못 알아본 사진이 섞여 있을 수 있습니다. 사진을 누르면 원본 기록으로 갑니다.</p>` : "");
-  } catch {
+  } catch (err) {
     if (!still()) return;
     const otherKo = [...known].filter(n => n !== CI[id]?.name);
     vern.innerHTML = otherKo.length ? `<span class="muted small">함께 연결된 이름·품종</span>${otherKo.map(n => `<span>${esc(n)}</span>`).join("")}` : "";
     photos.className = "small muted";
-    photos.textContent = "이 식물의 사진을 찾지 못했습니다 (인터넷 연결이 필요합니다).";
+    photos.textContent = err.message === "no exact match"
+      ? "GBIF에 이 학명과 정확히 같은 기록이 없어 사진을 싣지 않았습니다. 비슷한 다른 식물의 사진이 섞이지 않게 하기 위해서입니다."
+      : "이 식물의 사진을 찾지 못했습니다 (인터넷 연결이 필요합니다).";
   }
 }
 

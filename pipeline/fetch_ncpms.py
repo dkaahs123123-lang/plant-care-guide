@@ -1,7 +1,9 @@
 """3단계: 국가농작물병해충관리시스템(NCPMS) Open API에서 작물별 병·해충 정보를 내려받는다.
 
 사용법:
-    python -I pipeline/fetch_ncpms.py data/raw/ncpms
+    python -I pipeline/fetch_ncpms.py data/raw/ncpms [--refresh]
+
+--refresh 를 붙이면 이미 받은 것도 모두 다시 받아, 바뀐 항목을 changes.json 에 남긴다.
 
 .env 의 NCPMS_API_KEY 가 필요하다. 받은 응답은 그대로 저장하므로
 중간에 멈춰도 다시 실행하면 이미 받은 것은 건너뛴다.
@@ -67,27 +69,45 @@ def fetch_list(key, code, out):
     return items
 
 
-def fetch_details(key, code, param, keys, folder):
+def same(a, b):
+    """응답마다 바뀌는 조회 시각(buildTime)은 빼고 비교한다."""
+    strip = lambda d: {k: v for k, v in d.items() if k != "buildTime"}
+    return strip(a) == strip(b)
+
+
+def fetch_details(key, code, param, keys, folder, refresh, changes):
     folder.mkdir(parents=True, exist_ok=True)
-    todo = [k for k in keys if not (folder / f"{k}.json").exists()]
+    todo = keys if refresh else [k for k in keys if not (folder / f"{k}.json").exists()]
     print(f"{code}: 상세 {len(keys)}건 중 {len(todo)}건 받기", flush=True)
     for i, k in enumerate(todo, 1):
         data = call(key, serviceCode=code, **{param: k})
-        (folder / f"{k}.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        path = folder / f"{k}.json"
+        old = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        if old is None:
+            changes.append(["새 항목", code, k])
+        elif not same(old, data):
+            changes.append(["바뀜", code, k])
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         if i % 50 == 0:
             print(f"  {i}/{len(todo)}", flush=True)
 
 
-def main(out_dir):
+def main(out_dir, refresh=False):
     sys.stdout.reconfigure(encoding="utf-8")
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     key = load_key()
+    if refresh:  # 목록부터 새로 받아 추가·삭제된 항목도 반영한다
+        for f in ("SVC01_list.json", "SVC03_list.json"):
+            (out / f).unlink(missing_ok=True)
 
+    changes = []
     sick = fetch_list(key, "SVC01", out)
     insect = fetch_list(key, "SVC03", out)
-    fetch_details(key, "SVC05", "sickKey", sorted({s["sickKey"] for s in sick if s.get("sickKey")}), out / "sick")
-    fetch_details(key, "SVC07", "insectKey", sorted({s["insectKey"] for s in insect if s.get("insectKey")}), out / "insect")
+    fetch_details(key, "SVC05", "sickKey", sorted({s["sickKey"] for s in sick if s.get("sickKey")}), out / "sick", refresh, changes)
+    fetch_details(key, "SVC07", "insectKey", sorted({s["insectKey"] for s in insect if s.get("insectKey")}), out / "insect", refresh, changes)
+    (out / "changes.json").write_text(json.dumps(changes, ensure_ascii=False), encoding="utf-8")
+    print(f"바뀐 항목 {sum(c[0] == '바뀜' for c in changes)}건, 새 항목 {sum(c[0] == '새 항목' for c in changes)}건")
 
     (out / "fetched.json").write_text(
         json.dumps({"fetched": time.strftime("%Y-%m-%d"), "source": "농촌진흥청 국가농작물병해충관리시스템(NCPMS) Open API"}, ensure_ascii=False),
@@ -98,4 +118,4 @@ def main(out_dir):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], refresh="--refresh" in sys.argv)

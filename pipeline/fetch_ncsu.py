@@ -46,7 +46,7 @@ def fields(page):
     return out
 
 
-def main(db_path, out_dir):
+def main(db_path, out_dir, part=None):
     sys.stdout.reconfigure(encoding="utf-8")
     out = Path(out_dir)
     (out / "pages").mkdir(parents=True, exist_ok=True)
@@ -67,6 +67,9 @@ def main(db_path, out_dir):
             wanted[slug] = name
     (out / "wanted.json").write_text(json.dumps(wanted, ensure_ascii=False, indent=1), encoding="utf-8")
     todo = [s for s in wanted if not (out / "pages" / f"{s}.json").exists()]
+    if part:
+        k, n = part
+        todo += [s for i, s in enumerate(sorted(wanted)) if i % n == k and s not in todo]
     print(f"종 단위 페이지 {len(wanted)}개 중 {len(todo)}개 받기", flush=True)
 
     for i, slug in enumerate(todo, 1):
@@ -85,4 +88,5 @@ def main(db_path, out_dir):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    arg = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--part=")), None)
+    main(sys.argv[1], sys.argv[2], tuple(int(x) for x in arg.split("/")) if arg else None)

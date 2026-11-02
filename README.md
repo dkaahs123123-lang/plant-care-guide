@@ -6,6 +6,21 @@
 
 `식물도감 실행.bat`을 더블클릭하면 브라우저에 http://localhost:8790 이 열립니다. 검은 창을 닫으면 종료됩니다.
 
+## 공개 사이트
+
+https://dkaahs123123-lang.github.io/plant-care-guide/
+
+`site/` 폴더를 `gh-pages` 가지로 올려 GitHub Pages에서 보여 줍니다. 사이트를 고친 뒤 `사이트 올리기.bat`을 실행하면 1~3분 뒤 반영됩니다. 고칠 때는 `site/sw.js`의 `VERSION` 값을 바꿔야 방문자 기기에 저장된 예전 파일이 지워집니다.
+
+## 틀린 정보를 바로 고치는 법
+
+1. 사이트의 각 정보 칸에 있는 **틀린 내용 신고** 버튼으로 신고가 GitHub 이슈로 들어온다.
+2. 확인되면 [data/corrections.tsv](data/corrections.tsv)에 한 줄을 적는다 (항목 감추기, 대표 이름 바꾸기 등). 작물·학명 연결이 틀렸으면 `data/crop_map.tsv`, `data/airplant_map.tsv`, `data/name_fixes.tsv` 를 고친다.
+3. `사이트 올리기.bat`을 실행한다. 다시 만들기 → 공개 전 점검(`pipeline/check_site.py`) → 공개 순서로 진행되고, 점검에서 문제가 나오면 공개하지 않는다.
+4. 고친 내역은 사이트의 **고친 내역** 페이지에 이유와 함께 공개된다. 출처 기관의 자료 자체가 틀렸으면 그 기관에도 알린다.
+
+출처 기관이 고친 내용을 따라가려면 `자료 갱신.bat`으로 공식 자료를 새로 받는다.
+
 ## 원칙
 
 - 모든 정보에는 출처를 표시합니다.
@@ -41,6 +56,7 @@ python -I pipeline/fetch_garden.py data/raw/garden
 python -I pipeline/fetch_airplants.py data/raw/airplant
 python -I pipeline/fetch_ncsu.py data/plants.db data/raw/ncsu
 python -I pipeline/fetch_smartfarm.py data/raw/smartfarm
+python -I pipeline/fetch_climate.py data/raw/climate
 python -I pipeline/build_care.py data site/data/care
 ```
 

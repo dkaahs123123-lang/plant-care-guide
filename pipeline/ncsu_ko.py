@@ -147,8 +147,8 @@ def feet_in_to_m(text):
     return ("다 자란 높이" if m.group(1) == "Height" else "다 자란 폭"), f"약 {fmt(lo)}~{fmt(hi)}m"
 
 
-def zone_min_c(zones):
-    """USDA 내한성 구역 목록에서 가장 추운 구역의 최저기온 하한을 섭씨로 돌려준다.
+def zone_min(zones):
+    """USDA 내한성 구역 목록에서 가장 추운 구역과 그 최저기온 하한(섭씨)을 돌려준다.
     USDA 정의: 1a 구역이 -60°F 이상이고, 반 구역(a/b)마다 5°F씩 올라간다."""
     best = None
     for z in zones:
@@ -158,5 +158,18 @@ def zone_min_c(zones):
                 best = (f, f"{n}{half}")
     if not best:
         return None
-    c = round((best[0] - 32) * 5 / 9)
-    return f"약 {c}°C까지 (USDA {best[1]} 구역, 야외 기준)"
+    return best[1], round((best[0] - 32) * 5 / 9, 1)
+
+
+def zone_of_c(c):
+    """섭씨 최저기온이 들어가는 USDA 구역 이름 (예: -15.2 -> '7a')"""
+    f = c * 9 / 5 + 32
+    step = int((f + 60) // 5)
+    return f"{step // 2 + 1}{'ab'[step % 2]}"
+
+
+def zone_min_c(zones):
+    z = zone_min(zones)
+    if not z:
+        return None
+    return f"약 {round(z[1])}°C까지 (USDA {z[0]} 구역, 야외 기준)"

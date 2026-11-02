@@ -3,5 +3,6 @@ data/raw/
 data/*.db
 __pycache__/
 .claude/
-# 출처 대조를 하지 않은 첫 시험 페이지
-plant-care.html
+# 예전 시험 파일 (출처 대조를 하지 않음)
+보관/
+logs/

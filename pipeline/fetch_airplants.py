@@ -38,7 +38,7 @@ def call(key, op, **params):
     return body
 
 
-def main(out_dir):
+def main(out_dir, refresh=False):
     sys.stdout.reconfigure(encoding="utf-8")
     out = Path(out_dir)
     (out / "view").mkdir(parents=True, exist_ok=True)
@@ -47,12 +47,18 @@ def main(out_dir):
     listing = call(key, "selectPuriAirPlantList", pageNo=1, numOfRows=PAGE)
     (out / "list.xml").write_text(listing, encoding="utf-8")
     ids = re.findall(r"<idx>(\d+)</idx>", listing)
+    changes = []
     print(f"목록 {len(ids)}종", flush=True)
 
     for i, idx in enumerate(ids, 1):
         path = out / "view" / f"{idx}.xml"
-        if not path.exists():
-            path.write_text(call(key, "selectPuriAirPlantView", idx=idx), encoding="utf-8")
+        if refresh or not path.exists():
+            new = call(key, "selectPuriAirPlantView", idx=idx)
+            if path.exists() and path.read_text(encoding="utf-8") != new:
+                changes.append(["바뀜", idx])
+            elif not path.exists():
+                changes.append(["새 항목", idx])
+            path.write_text(new, encoding="utf-8")
         if i % 20 == 0:
             print(f"  {i}/{len(ids)}", flush=True)
 
@@ -60,8 +66,9 @@ def main(out_dir):
         json.dumps({"fetched": time.strftime("%Y-%m-%d"), "source": "농촌진흥청 국립원예특작과학원 공기정화식물 (공공데이터포털)"}, ensure_ascii=False),
         encoding="utf-8",
     )
-    print(f"완료: 공기정화식물 {len(ids)}종")
+    (out / "changes.json").write_text(json.dumps(changes, ensure_ascii=False), encoding="utf-8")
+    print(f"완료: 공기정화식물 {len(ids)}종, 바뀌거나 새로 생긴 항목 {len(changes)}건")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], refresh="--refresh" in sys.argv)
