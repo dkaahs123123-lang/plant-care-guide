@@ -1,0 +1,218 @@
+# NCPMS 작물명 -> 학명 연결표. 학명은 종 또는 속(한 단어). '-' 는 연결하지 않음.
+# 학명은 build_ncpms_care.py 가 WFO 목록에서 확인하고, 옛 학명이면 현재 학명으로 바꾼다.
+# 작물명	학명	메모
+가지	Solanum melongena
+감	Diospyros kaki
+감귤	Citrus	감귤류 전체 자료로 보고 속에 연결
+감자	Solanum tuberosum
+감초	Glycyrrhiza uralensis	국내 재배 감초 기준
+갓	Brassica juncea
+강낭콩	Phaseolus vulgaris
+개나리	Forsythia koreana
+개똥쑥	Artemisia annua
+개양귀비	Papaver rhoeas
+갯기름 나물(식방풍)	Peucedanum japonicum
+거베라	Gerbera	재배 거베라는 교잡종이라 속에 연결
+고구마	Ipomoea batatas
+고려엉겅퀴(곤드레나물)	Cirsium setidens
+고무나무	Ficus	인도고무나무, 벤자민 등 여러 종을 묶은 자료라 속에 연결
+고본	Angelica tenuissima
+고추	Capsicum annuum
+고추냉이	Eutrema japonicum
+곰취	Ligularia fischeri
+과꽃	Callistephus chinensis
+관음죽	Rhapis excelsa
+구기자	Lycium chinense
+국화	Chrysanthemum morifolium
+군자란	Clivia miniata
+귀리	Avena sativa
+근대	Beta vulgaris
+글라디올러스	Gladiolus	재배종은 교잡종이라 속에 연결
+금어초	Antirrhinum majus
+금잔화	Calendula officinalis
+기장	Panicum miliaceum
+기타관엽식물류	-	여러 식물을 묶은 항목
+꽃기린	Euphorbia milii
+꽃양배추	Brassica oleracea
+냉이	Capsella bursa-pastoris
+녹두	Vigna radiata
+논벼	Oryza sativa
+다알리아	Dahlia	재배종은 교잡종이라 속에 연결
+담배	Nicotiana tabacum
+당근	Daucus carota
+대추	Ziziphus jujuba
+더덕	Codonopsis lanceolata
+덴파레	Dendrobium	덴드로비움 교잡종이라 속에 연결
+도라지	Platycodon grandiflorus
+도라지(길경)	Platycodon grandiflorus
+동백나무	Camellia japonica
+동부	Vigna unguiculata
+동아	Benincasa hispida
+동양심비	Cymbidium	동양란 심비디움류라 속에 연결
+둥굴레	Polygonatum odoratum
+드라세나	Dracaena	여러 종을 묶은 이름이라 속에 연결
+들깨	Perilla frutescens
+디펜바키아	Dieffenbachia	여러 종을 묶은 이름이라 속에 연결
+딸기	Fragaria × ananassa
+땅콩	Arachis hypogaea
+레몬민트(베르가못)	Monarda	레몬민트와 베르가못이 다른 종이라 속에 연결
+레몬밤	Melissa officinalis
+로즈마리	Salvia rosmarinus
+마(산약)	Dioscorea polystachya
+마늘	Allium sativum
+망고	Mangifera indica
+매실	Prunus mume
+맥문동	Liriope muscari
+머위	Petasites japonicus
+메리골드	Tagetes	아프리칸·프렌치 메리골드를 묶은 이름이라 속에 연결
+멜론	Cucumis melo
+면화	Gossypium	재배 목화는 여러 종이라 속에 연결
+모과	Pseudocydonia sinensis
+모란(목단)	Paeonia × suffruticosa
+목화	Gossypium	재배 목화는 여러 종이라 속에 연결
+몬스테라	Monstera deliciosa
+무	Raphanus sativus
+무궁화	Hibiscus syriacus
+무화과	Ficus carica
+문주란	Crinum asiaticum
+미나리	Oenanthe javanica
+민들레	Taraxacum	여러 종을 묶은 이름이라 속에 연결
+밀	Triticum aestivum
+바실	Ocimum basilicum
+밤	Castanea crenata	국내 재배 밤나무 기준
+배	Pyrus pyrifolia
+배초향	Agastache rugosa
+배추	Brassica rapa subsp. pekinensis
+백수오(큰조롱)	Cynanchum wilfordii
+백일홍	Zinnia elegans
+백작약	Paeonia lactiflora
+백합(나리)	Lilium	여러 종과 교잡종을 묶은 이름이라 속에 연결
+보리	Hordeum vulgare
+복분자	Rubus coreanus
+복숭아	Prunus persica
+봉숭아(봉선화)	Impatiens balsamina
+부추	Allium tuberosum
+붓꽃	Iris	여러 종을 묶은 이름이라 속에 연결
+브로콜리(녹색꽃양배추)	Brassica oleracea var. italica
+블루베리	Vaccinium corymbosum	국내 주 재배종(하이부시) 기준
+비름	Amaranthus tricolor
+비파	Eriobotrya japonica
+사과	Malus × domestica
+사탕무	Beta vulgaris
+산마늘	Allium microdictyon
+산수유	Cornus officinalis
+살구	Prunus armeniaca
+삽주	Atractylodes ovata
+상추	Lactuca sativa
+샐러리	Apium graveolens
+샐비어	Salvia splendens
+생강	Zingiber officinale
+석류나무	Punica granatum
+선인장	-	여러 속을 묶은 이름
+소철	Cycas revoluta
+수국	Hydrangea macrophylla
+수박	Citrullus lanatus
+수수	Sorghum bicolor
+순무	Brassica rapa subsp. rapa
+쉐프렐라	Schefflera arboricola	국내 유통 쉐프렐라(홍콩야자) 기준
+스타티스	Limonium sinuatum
+스토크	Matthiola incana
+스파티필럼	Spathiphyllum	여러 종과 교잡종을 묶은 이름이라 속에 연결
+시금치	Spinacia oleracea
+시써스	Cissus	여러 종을 묶은 이름이라 속에 연결
+시호	Bupleurum falcatum
+식나무	Aucuba japonica
+심비디움	Cymbidium	교잡종이라 속에 연결
+쑥갓	Glebionis coronaria
+아나나스	-	여러 속의 관상용 파인애플과 식물을 묶은 이름
+아레카야자	Dypsis lutescens
+아로니아	Aronia melanocarpa
+아마란스	Amaranthus	곡물용 여러 종을 묶은 이름이라 속에 연결
+아마릴리스	Hippeastrum	교잡종이라 속에 연결
+아스파라가스	Asparagus	채소용과 관상용 구분이 자료에 없어 속에 연결
+아스파라거스	Asparagus	채소용과 관상용 구분이 자료에 없어 속에 연결
+아욱	Malva verticillata
+아이비(헤데라)	Hedera helix
+안개꽃	Gypsophila paniculata
+애플민트	Mentha suaveolens
+애호박	Cucurbita moschata
+앵두	Prunus tomentosa
+양마(케나프)	Hibiscus cannabinus
+양배추	Brassica oleracea var. capitata
+양파	Allium cepa
+에키네시아	Echinacea purpurea
+여주	Momordica charantia
+열무	Raphanus sativus
+오갈피	Eleutherococcus sessiliflorus
+오미자	Schisandra chinensis
+오이	Cucumis sativus
+오크라	Abelmoschus esculentus
+옥수수	Zea mays
+용과	Selenicereus undatus
+우엉	Arctium lappa
+울외	Cucumis melo var. conomon
+원추리	Hemerocallis fulva
+유자	Citrus	유자 학명(Citrus junos)이 WFO 목록에 없어 속에 연결
+유채	Brassica napus
+은행나무	Ginkgo biloba
+이팝나무	Chionanthus retusus
+자두	Prunus salicina
+작두콩	Canavalia gladiata
+작약	Paeonia lactiflora
+장미	Rosa	재배 장미는 교잡종이라 속에 연결
+접시꽃	Alcea rosea
+제라늄	Pelargonium	재배 제라늄은 교잡종이라 속에 연결
+조	Setaria italica
+종려죽	Rhapis humilis
+쥐오줌풀(길초근)	Valeriana fauriei
+쥬키니호박	Cucurbita pepo
+지치	Lithospermum erythrorhizon
+지황	Rehmannia glutinosa
+진달래	Rhododendron mucronulatum
+참깨	Sesamum indicum
+참나물	Pimpinella brachycarpa
+참다래(키위,다래)	Actinidia	키위와 다래가 다른 종이라 속에 연결
+참당귀(당귀)	Angelica gigas
+참외	Cucumis melo var. makuwa
+천궁	Cnidium officinale
+천일홍	Gomphrena globosa
+청경채	Brassica rapa subsp. chinensis
+체리	Prunus avium
+초석잠	Stachys sieboldii
+초피	Zanthoxylum piperitum
+춘란	Cymbidium goeringii
+치자나무	Gardenia jasminoides
+치커리	Cichorium intybus
+카네이션	Dianthus caryophyllus
+칸나	Canna	교잡종이라 속에 연결
+케일	Brassica oleracea var. acephala
+켄차야자	Howea forsteriana
+콜라비(순무양배추)	Brassica oleracea var. gongylodes
+콩	Glycine max
+퀴노아	Chenopodium quinoa
+클레로덴드럼	Clerodendrum	여러 종을 묶은 이름이라 속에 연결
+택사	Alisma orientale
+토마토	Solanum lycopersicum
+튜울립	Tulipa	재배 튤립은 교잡종이라 속에 연결
+파	Allium fistulosum
+파슬리	Petroselinum crispum
+파프리카	Capsicum annuum
+팔손이	Fatsia japonica
+팥	Vigna angularis
+패랭이꽃	Dianthus chinensis
+패션푸룻	Passiflora edulis
+팬지	Viola	팬지 학명(Viola × wittrockiana)이 WFO 목록에 없어 속에 연결
+페튜니아	Petunia	교잡종이라 속에 연결
+포도	Vitis	국내 재배 포도는 여러 종과 교잡종이라 속에 연결
+피닉스야자	Phoenix	여러 종을 묶은 이름이라 속에 연결
+피망	Capsicum annuum
+하수오	Fallopia multiflora
+해국	Aster spathulifolius
+해바라기	Helianthus annuus
+협죽도	Nerium oleander
+호두나무	Juglans regia
+호박	Cucurbita	여러 종을 묶은 이름이라 속에 연결
+황금	Scutellaria baicalensis
+황기	Astragalus membranaceus
+회향	Foeniculum vulgare
+흑종호박	Cucurbita ficifolia
