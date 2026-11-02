@@ -706,7 +706,7 @@ function webCard(w, name) {
 
 // 농사로 현장기술지원 사례: 공공누리 제4유형(변경금지)이라 문장을 고치지 않고 그대로 보여 준다.
 function casesCard(c) {
-  const method = it => (it.sections.find(([h]) => h.startsWith("영농현황"))?.[1] || []).find(l => /재배\s*방식/.test(l))?.split(":").pop().trim();
+  const method = it => (it.sections.find(([h]) => /^(영농현황|경종개요)/.test(h))?.[1] || []).find(l => /재배\s*(방식|형태|양식)/.test(l))?.split(":").pop().trim();
   return `
     <section class="card">
       <h2>현장 진단 사례</h2>
@@ -715,7 +715,10 @@ function casesCard(c) {
       <div class="pests">${c.items.map(it => `
         <details class="pest case-item" data-no="${esc(it.no)}">
           <summary><b>${esc(it.title)}</b> <span class="muted small">${esc(it.date)} · ${esc(it.region)}${method(it) ? ` · ${esc(method(it))}` : ""}</span></summary>
-          <div class="pest-body"><dl>
+          <div class="pest-body">
+          ${it.note ? `<p class="small genus-note">${esc(it.note)}</p>` : ""}
+          ${it.mixed ? `<p class="small genus-note">원문에 이 사례와 다른 작물(${it.mixed.map(esc).join(", ")})의 정보가 잘못 섞여 있어 그 부분은 싣지 않았어요.</p>` : ""}
+          <dl>
             ${it.sections.map(([h, items]) => `<dt>${esc(h)}</dt><dd>${items.map(esc).join("\n")}</dd>`).join("")}
           </dl>
           ${it.omitted ? `<p class="small muted">이름·연락처·주소가 들어 있을 수 있는 줄 ${it.omitted}개는 싣지 않았습니다.</p>` : ""}
