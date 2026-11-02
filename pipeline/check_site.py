@@ -16,6 +16,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from privacy import is_private  # noqa: E402
+
 PHONE = re.compile(r"(?<![\d.])0\d{1,2}-\d{3,4}-\d{4}(?!\d)")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.(com|net|kr|org|co\.kr)\b")
 SOURCED = {"grow": ("source", "retrieved"), "air": ("source", "retrieved"), "pests": ("source", "retrieved"),
@@ -59,6 +62,12 @@ def main(site):
             problems.append(f"[연결] 목록에 있지만 파일이 없음: {key}")
             continue
         doc = json.loads(f.read_text(encoding="utf-8"))
+        # 현장 진단 사례: 칸 제목과 글 모두 개인정보 기준(privacy.py)을 다시 통과해야 한다
+        for case in (doc.get("cases") or {}).get("items", []):
+            for head, lines in case.get("sections", []):
+                for line in [head, *lines]:
+                    if is_private(line):
+                        problems.append(f"[개인정보] 사례 {case.get('no')}: '{line[:40]}'")
         for part, fields in SOURCED.items():
             if part in doc:
                 for field in fields:

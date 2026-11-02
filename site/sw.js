@@ -1,6 +1,6 @@
 // 항상 최신 파일을 먼저 받고, 인터넷이 끊겼을 때만 저장해 둔 파일을 쓴다.
 // 사이트를 고칠 때마다 이 값을 바꾸면 방문자 기기의 예전 저장본이 지워진다.
-const VERSION = "v16-cases-names";
+const VERSION = "v17-cases-fixed";
 const SHELL = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest", "icon.svg", "data/meta.json", "data/genera.json", "data/care/index.json", "data/family_ko.json"];
 
 self.addEventListener("install", e => {

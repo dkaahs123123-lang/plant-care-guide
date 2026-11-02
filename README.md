@@ -68,6 +68,8 @@ python -I pipeline/build_care.py data site/data/care
 
 - NCPMS 작물명과 학명의 연결은 [data/crop_map.tsv](data/crop_map.tsv)에 있습니다. 여러 종을 묶은 작물명(장미, 백합 등)은 속에 연결합니다.
 - 출처 학명과 WFO 표기가 다른 경우는 [data/name_fixes.tsv](data/name_fixes.tsv)로 맞춥니다.
+- 현장 진단 사례는 품목명으로 [data/case_crop_map.tsv](data/case_crop_map.tsv)를 거쳐 연결하고, 원문 품목·제목이 내용과 다른 사례는 [data/case_fix.tsv](data/case_fix.tsv)로 하나씩 바로잡습니다(사이트에 이유를 안내). 원문 '재배작물' 칸에 다른 식물이 적힌 부분은 자동으로 빼고 `data/cases_mixed.txt`에 남깁니다.
+- 사례의 개인정보 기준은 [pipeline/privacy.py](pipeline/privacy.py) 한 곳에 있고, 자료 만들기와 올리기 전 점검이 같은 기준을 씁니다.
 - 표를 고친 뒤에는 마지막 줄만 다시 실행하면 됩니다.
 
 WFO는 매년 6월과 12월에 새 판을 냅니다. 새 판을 내려받아 위 두 줄을 다시 실행하고, `site/sw.js`의 `VERSION` 값을 바꾸면 됩니다.

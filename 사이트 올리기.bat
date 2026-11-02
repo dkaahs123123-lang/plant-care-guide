@@ -1,23 +1,22 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-echo [1/3] ê³ ì¹¨í‘œì™€ ìë£Œë¥¼ ë°˜ì˜í•´ ì‚¬ì´íŠ¸ íŒŒì¼ì„ ë‹¤ì‹œ ë§Œë“­ë‹ˆë‹¤.
+echo [1/3] °íÄ§Ç¥¿Í ÀÚ·á¸¦ ¹İ¿µÇØ »çÀÌÆ® ÆÄÀÏÀ» ´Ù½Ã ¸¸µì´Ï´Ù.
 python -I pipeline\build_care.py data site\data\care || goto :fail
-echo [2/3] ê³µê°œ ì „ ì ê²€ì„ í•©ë‹ˆë‹¤. ë¬¸ì œê°€ ìˆìœ¼ë©´ ì—¬ê¸°ì„œ ë©ˆì¶¥ë‹ˆë‹¤.
+echo [2/3] °ø°³ Àü Á¡°ËÀ» ÇÕ´Ï´Ù. ¹®Á¦°¡ ÀÖÀ¸¸é ¿©±â¼­ ¸ØÃä´Ï´Ù.
 python -I pipeline\check_site.py site || goto :fail
-echo [3/3] GitHubì— ì˜¬ë¦¬ê³  ê³µê°œ ì‚¬ì´íŠ¸ë¥¼ ê°±ì‹ í•©ë‹ˆë‹¤.
+echo [3/3] GitHub¿¡ ¿Ã¸®°í °ø°³ »çÀÌÆ®¸¦ °»½ÅÇÕ´Ï´Ù.
 git add -A
-git commit -m "ì‚¬ì´íŠ¸ ê°±ì‹ "
+git commit -m "»çÀÌÆ® °»½Å"
 git push origin main
 for /f %%i in ('git subtree split --prefix site main') do set SPLIT=%%i
 git push -f origin %SPLIT%:gh-pages
 echo.
-echo 1~3ë¶„ ë’¤ https://dkaahs123123-lang.github.io/plant-care-guide/ ì— ë°˜ì˜ë©ë‹ˆë‹¤.
+echo 1~3ºĞ µÚ https://dkaahs123123-lang.github.io/plant-care-guide/ ¿¡ ¹İ¿µµË´Ï´Ù.
 pause
 exit /b 0
 
 :fail
 echo.
-echo ë¬¸ì œê°€ ìˆì–´ ê³µê°œí•˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤. ìœ„ì˜ ë‚´ìš©ì„ í™•ì¸í•´ ì£¼ì„¸ìš”.
+echo ¹®Á¦°¡ ÀÖ¾î °ø°³ÇÏÁö ¾Ê¾Ò½À´Ï´Ù. À§ÀÇ ³»¿ëÀ» È®ÀÎÇØ ÁÖ¼¼¿ä.
 pause
 exit /b 1

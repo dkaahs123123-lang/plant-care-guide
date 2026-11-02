@@ -1,6 +1,5 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0site"
-echo ì‹ë¬¼ ëŒë´„ ë„ê°ì„ ì‹¤í–‰í•©ë‹ˆë‹¤. ì´ ì°½ì„ ë‹«ìœ¼ë©´ í”„ë¡œê·¸ë¨ì´ ì¢…ë£Œë©ë‹ˆë‹¤.
+echo ½Ä¹° µ¹º½ µµ°¨À» ½ÇÇàÇÕ´Ï´Ù. ÀÌ Ã¢À» ´İÀ¸¸é ÇÁ·Î±×·¥ÀÌ Á¾·áµË´Ï´Ù.
 start "" http://localhost:8790/
-python -m http.server 8790 --bind 127.0.0.1
+python -m http.server 8790 --bind 127.0.0.1 --directory "%~dp0site"

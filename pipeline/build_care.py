@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import ncsu_ko  # noqa: E402
+from privacy import is_private  # noqa: E402
 
 NCPMS_SOURCE = "농촌진흥청 국가농작물병해충관리시스템(NCPMS)"
 NCPMS_URL = "https://ncpms.rda.go.kr"
@@ -53,15 +54,9 @@ CASES_SOURCE = "농촌진흥청 농사로 현장기술지원 사례"
 CASES_URL = "https://www.nongsaro.go.kr/portal/ps/psz/psza/contentSub.ps?menuId=PS00077&cntntsNo="
 CASES_LICENSE = "공공누리 제4유형 (출처표시, 상업적 이용금지, 변경금지)"
 # 품목명 앞에 붙는 작형·재배 방식 말. 떼어 낸 뒤 작물 이름으로 찾는다 (예: 가을배추 -> 배추, 시설오이 -> 오이)
-# 사례 문장 중 사람 이름(직함), 전화번호, 번지·도로명 주소가 들어 있는 줄은 싣지 않는다
-PRIVATE_LINE = re.compile(
-    r"\d{2,3}-\d{3,4}-\d{4}"
-    r"|[가-힣]{2,4}\s?(팀장|계장|과장|소장|센터장|지도사|지도관|연구사|연구관|기술위원|위원|주무관|서기관|사무관|박사|교수|대표|이장|농가주)"
-    r"|[가-힣]+길\s?\d+|[가-힣]+로\s?\d+번?길|\d+\s?번지|[가-힣]+(읍|면)\s[가-힣]+리\s?\d"
-    r"|농\s?가\s?명|성\s?명\s?:|연\s?락\s?처|주\s?소\s?:"
-    # 원문이 '김○○'처럼 다 가린 이름은 두고, '김○태'·'김은○'처럼 두 글자가 드러난 이름은 뺀다
-    r"|(?<![가-힣])[가-힣][○◯][가-힣](?![가-힣])|(?<![가-힣])[가-힣]{2}[○◯](?![가-힣○◯])"
-)
+# 사례의 '재배작물 : 토마토' 같은 줄. 값이 사례 품목과 다르면 원문에 다른 사례 내용이 섞인 것이다
+CROP_LINE = re.compile(r"^\s*(?:재\s*배\s*)?작\s*물\s*명?\s*[:：]\s*(.+)")
+FARM_HEADS = ("경종개요", "영농현황", "재배현황", "일반현황", "농가현황")
 CASE_PREFIXES = ("고랭지", "시설", "노지", "하우스", "터널", "가을", "봄", "여름", "겨울", "월동", "조생", "만생",
                  "반촉성", "촉성", "억제", "수경", "양액", "유기농", "친환경", "포트", "육묘", "재배", "작형")
 KFS_SOURCE = "산림청 표준식물종정보 (공공데이터포털)"
@@ -534,33 +529,105 @@ def add_cases(data_dir, targets, problems, resolve, meta):
             name = next((name[len(p):] for p in CASE_PREFIXES if name.startswith(p) and len(name) > len(p)), name)
         return by_name.get(name)
 
-    linked, missing, dropped, linked_pairs = 0, defaultdict(int), 0, defaultdict(int)
+    case_fix = {r[0]: r[1:] for r in read_tsv(data_dir / "case_fix.tsv")} if (data_dir / "case_fix.tsv").exists() else {}
+
+    def case_fix_keys(case):
+        target = case_fix[case["no"]][0]
+        if target == "=":
+            key = find(case["crop"])
+            return [key] if key else []
+        keys = []
+        for sci in filter(None, (t.strip() for t in target.split(";"))):
+            if sci == "-":
+                continue
+            hit = resolve(sci)
+            if not hit:
+                problems.append(f"[사례] case_fix.tsv 의 학명을 찾을 수 없음: {case['no']} -> {sci}")
+                continue
+            meta.setdefault(hit[0], hit[1:])
+            keys.append(hit[0])
+        return keys
+
+    def crop_keys(value):
+        """'가지, 토마토(품종 : 대프니스)' 같은 값에서 도감 식물들을 찾는다. 품종 이름 등 모르는 이름은 건너뛴다."""
+        keys = set()
+        for part in re.split(r"[,·/및]", re.sub(r"\(.*?\)|\(.*$|\[.*?\]", "", value)):
+            part = part.strip()
+            for _ in range(3):
+                if len(part) >= 2 and part in by_name:
+                    keys.add(by_name[part])
+                    break
+                part = next((part[len(p):] for p in CASE_PREFIXES if part.startswith(p) and len(part) > len(p)), part)
+        return keys
+
+    linked, missing, dropped, linked_pairs, mixed_cases = 0, defaultdict(int), 0, defaultdict(int), []
     for path in raw.glob("*.json"):
         case = json.loads(path.read_text(encoding="utf-8"))
         if case.get("error") or not case.get("sections"):
             continue
         sections = []
         for head, items in case["sections"]:
-            kept = [i for i in items if not PRIVATE_LINE.search(i)]
+            kept = [i for i in items if not is_private(i)]
             dropped += len(items) - len(kept)
+            if is_private(head):
+                # 칸 제목에 출장자·농가 이름이 들어간 경우: 출장자 칸은 통째로 빼고, 농가별 칸은 이름 없는 제목으로 싣는다
+                if re.search(r"출\s?장\s?자|보\s?고\s?자|입\s?회\s?자", head):
+                    dropped += len(kept)
+                    continue
+                head = "농가별 조사 내용"
             if kept:
                 sections.append([head, kept])
+        # 개인정보 때문에 뺀 줄 수(다른 작물이 섞여 뺀 부분은 따로 안내한다)
+        case["omitted"] = sum(len(i) for _, i in case["sections"]) - sum(len(i) for _, i in sections)
         case["sections"] = sections
-        case["omitted"] = sum(len(i) for _, i in json.loads(path.read_text(encoding="utf-8"))["sections"]) - sum(len(i) for _, i in sections)
-        key = find(case["crop"])
-        if not key:
+        keys = case_fix_keys(case) if case["no"] in case_fix else [k for k in [find(case["crop"])] if k]
+        if not keys:
             missing[case["crop"]] += 1
             continue
-        targets[key]["cases"].append(case)
-        linked_pairs[(case["crop"], key)] += 1
+        if case["no"] in case_fix and len(case_fix[case["no"]]) > 1:
+            case["note"] = case_fix[case["no"]][1]
+        key = keys[0]
+        # 원문에 다른 사례의 작물 정보가 잘못 섞여 들어간 경우(예: 배추 사례에 '재배작물 : 토마토')를 찾아 그 부분을 뺀다.
+        # 품종 이름이나 '논벼/벼' 같은 다른 표기는 넘기고, 도감에 있는 '다른 식물' 이름이 적힌 경우만 본다
+        title = case["title"].replace(" ", "")
+        names_of = lambda k: {w.replace(" ", "") for w in [*targets[k]["crops"], *targets[k]["ko"]] if len(w) >= 2}
+        mixed, cleaned = [], []
+        for head, items in case["sections"]:
+            keep = []
+            for line in items:
+                m = CROP_LINE.match(line)
+                found = crop_keys(m.group(1)) if m else set()
+                value = m.group(1).replace(" ", "") if m else ""
+                # 적힌 작물 중에 이 사례 품목이 하나도 없고, 제목에도 그 작물이 없을 때만 섞인 것으로 본다
+                same_genus = any(meta.get(k, ("",))[0] == meta.get(o, ("?",))[0] for k in found for o in keys)  # 호박(속) - 쥬키니호박
+                own_named = any(w in value for o in keys for w in names_of(o) | {case["crop"]})
+                other_in_title = any(w in title for k in found for w in names_of(k))
+                if found and not found & set(keys) and not same_genus and not own_named and not other_in_title:
+                    mixed.append(m.group(1).strip())
+                    if head.replace(" ", "").startswith(FARM_HEADS):
+                        keep = None  # 작물 개요 칸은 면적·시기도 그 작물 것이라 칸째 뺀다
+                        break
+                    continue
+                keep.append(line)
+            if keep:
+                cleaned.append([head, keep])
+        if mixed:
+            case["mixed"] = mixed
+            case["sections"] = cleaned
+            mixed_cases.append(f"{case['no']}	{case['crop']}	{case['title']}	다른 작물: {', '.join(mixed)}")
+
+        for k in keys:
+            targets[k]["cases"].append(case)
+            linked_pairs[(case["crop"], k)] += 1
         linked += 1
     # 어떤 품목이 어느 식물에 붙었는지 사람이 검토할 수 있게 남긴다
     (data_dir / "cases_linked.txt").write_text(
         "\n".join(f"{crop}\t{targets[k]['names']['kfs'][:1] or targets[k]['crops'][:1] or targets[k]['ko'][:1]}\t{meta.get(k, ('', ''))[0]} {meta.get(k, ('', ''))[1]}\t{n}"
                   for (crop, k), n in sorted(linked_pairs.items(), key=lambda x: -x[1])), encoding="utf-8")
+    (data_dir / "cases_mixed.txt").write_text("\n".join(sorted(mixed_cases)), encoding="utf-8")
     (data_dir / "cases_unmatched.txt").write_text(
         "\n".join(f"{c}\t{n}" for c, n in sorted(missing.items(), key=lambda x: -x[1])), encoding="utf-8")
-    print(f"현장 진단 사례: {linked}건 연결, 품목이 안 맞은 {sum(missing.values())}건은 data/cases_unmatched.txt, 개인정보가 의심되어 뺀 줄 {dropped}개")
+    print(f"현장 진단 사례: {linked}건 연결, 품목이 안 맞은 {sum(missing.values())}건은 data/cases_unmatched.txt, 개인정보가 의심되어 뺀 줄 {dropped}개, 다른 작물 정보가 섞인 사례 {len(mixed_cases)}건은 data/cases_mixed.txt")
     fetched = data_dir / "raw" / "cases" / "fetched.json"
     return json.loads(fetched.read_text(encoding="utf-8"))["fetched"] if fetched.exists() else "수집 중"
 

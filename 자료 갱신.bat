@@ -1,9 +1,8 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-rem ì¶œì²˜ ê¸°ê´€ì´ ê³ ì¹œ ë‚´ìš©ì„ ë”°ë¼ê°€ê¸° ìœ„í•´ ê³µì‹ ìžë£Œë¥¼ ìƒˆë¡œ ë°›ì•„ ì‚¬ì´íŠ¸ë¥¼ ê°±ì‹ í•œë‹¤.
-rem ì˜ˆì „ ìžë£ŒëŠ” data\raw_old ë¡œ ì˜®ê²¨ ë‘ê³  ìƒˆë¡œ ë°›ëŠ”ë‹¤. ëª‡ ì‹œê°„ ê±¸ë¦´ ìˆ˜ ìžˆë‹¤.
-echo ê³µì‹ ìžë£Œë¥¼ ìƒˆë¡œ ë°›ìŠµë‹ˆë‹¤. ëª‡ ì‹œê°„ ê±¸ë¦´ ìˆ˜ ìžˆì–´ìš”.
+rem ÃâÃ³ ±â°üÀÌ °íÄ£ ³»¿ëÀ» µû¶ó°¡±â À§ÇØ °ø½Ä ÀÚ·á¸¦ »õ·Î ¹Þ¾Æ »çÀÌÆ®¸¦ °»½ÅÇÑ´Ù.
+rem ¿¹Àü ÀÚ·á´Â data\raw_old ·Î ¿Å°Ü µÎ°í »õ·Î ¹Þ´Â´Ù. ¸î ½Ã°£ °É¸± ¼ö ÀÖ´Ù.
+echo °ø½Ä ÀÚ·á¸¦ »õ·Î ¹Þ½À´Ï´Ù. ¸î ½Ã°£ °É¸± ¼ö ÀÖ¾î¿ä.
 if exist data\raw_old rmdir /s /q data\raw_old
 move data\raw data\raw_old >nul
 mkdir data\raw
@@ -16,4 +15,4 @@ python -I pipeline\fetch_smartfarm.py data\raw\smartfarm
 python -I pipeline\fetch_nongsaro_cases.py data\raw\cases
 python -I pipeline\fetch_ncsu.py data\plants.db data\raw\ncsu
 move data\raw_old\climate data\raw\climate >nul
-call "ì‚¬ì´íŠ¸ ì˜¬ë¦¬ê¸°.bat"
+call "»çÀÌÆ® ¿Ã¸®±â.bat"
