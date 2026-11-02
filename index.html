@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>식물 돌봄 도감</title>
+<meta name="description" content="전 세계 식물 38만 종의 학명과 분류, 그리고 공식 출처가 있는 재배·병해충 정보를 찾아보는 도감">
+<meta name="theme-color" content="#2E6B4A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#/">식물 돌봄 도감</a>
+    <form class="searchbar" id="search-form" role="search">
+      <input id="q" type="search" autocomplete="off" placeholder="식물 이름 검색 (예: 몬스테라, ㅁㅅㅌㄹ, Monstera)" aria-label="식물 검색">
+    </form>
+  </div>
+</header>
+
+<main class="wrap" id="app" aria-live="polite"></main>
+
+<footer class="wrap foot">
+  <p>학명과 분류: <a href="https://wfoplantlist.org" target="_blank" rel="noopener">World Flora Online</a> (CC0) · 한국어 이름: 산림청 표준식물종정보, 한국수목원정원관리원, 농촌진흥청 · 키우는 방법: 국립원예특작과학원, 한국수목원정원관리원 · 병해충: 농촌진흥청 국가농작물병해충관리시스템 · 다른 이름과 사진: <a href="https://www.gbif.org" target="_blank" rel="noopener">GBIF</a>. 각 자료의 이용 조건을 따르며 비영리로 운영합니다.</p>
+  <p>공식 출처가 없는 정보는 싣지 않습니다. 반려동물이 식물을 먹었다면 바로 동물병원에 연락하세요.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
