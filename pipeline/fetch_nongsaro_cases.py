@@ -56,11 +56,16 @@ def parse(page, no):
         "date": field("기술지원일"),
         "sections": [],
     }
-    for m in re.finditer(r'<p class="tit_2depth_right_away">(.*?)</p>\s*<ul class="right_away_list">(.*?)</ul>', page, re.S):
-        head = text(m.group(1))
+    # 사례 페이지는 두 가지 형식이 있다: (1) tit_2depth_right_away + right_away_list, (2) pszaContents 칸
+    blocks = re.findall(r'<p class="tit_2depth_right_away">(.*?)</p>\s*<ul class="right_away_list">(.*?)</ul>', page, re.S)
+    blocks += re.findall(r'<div class="pszaContents">\s*<p class="title">(.*?)</p>(.*?)</div>', page, re.S)
+    for head_html, body in blocks:
+        head = text(head_html)
         if any(head.startswith(s) for s in SKIP_SECTIONS):
             continue
-        items = [text(li) for li in re.findall(r"<li[^>]*>(.*?)</li>", m.group(2), re.S)]
+        items = [text(li) for li in re.findall(r"<li[^>]*>(.*?)</li>", body, re.S)]
+        if not items:
+            items = [text(p) for p in re.findall(r"<p(?:\s[^>]*)?>(.*?)</p>", body, re.S)]
         if head.startswith("영농현황"):
             items = [i for i in items if i.replace(" ", "").startswith(tuple(k.replace(" ", "") for k in KEEP_FARM_LINES))]
         items = [i for i in items if i]
@@ -93,7 +98,11 @@ def main(out_dir, refresh=False):
         ids_path.write_text(json.dumps(ids), encoding="utf-8")
     print(f"사례 {len(ids)}건", flush=True)
 
-    todo = [n for n in ids if not (out / "case" / f"{n}.json").exists()]
+    def empty(n):
+        f = out / "case" / f"{n}.json"
+        return not f.exists() or not json.loads(f.read_text(encoding="utf-8")).get("sections")
+    # 아직 없거나, 예전에 내용을 읽지 못한 사례를 받는다
+    todo = [n for n in ids if empty(n)]
     for i, no in enumerate(todo, 1):
         try:
             case = parse(get(f"{SITE}/contentSub.ps?menuId=PS00077&cntntsNo={no}"), no)

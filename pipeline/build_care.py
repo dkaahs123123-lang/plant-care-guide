@@ -58,7 +58,9 @@ PRIVATE_LINE = re.compile(
     r"\d{2,3}-\d{3,4}-\d{4}"
     r"|[가-힣]{2,4}\s?(팀장|계장|과장|소장|센터장|지도사|지도관|연구사|연구관|기술위원|위원|주무관|서기관|사무관|박사|교수|대표|이장|농가주)"
     r"|[가-힣]+길\s?\d+|[가-힣]+로\s?\d+번?길|\d+\s?번지|[가-힣]+(읍|면)\s[가-힣]+리\s?\d"
-    r"|농\s?가\s?명|성\s?명\s?:|연\s?락\s?처"
+    r"|농\s?가\s?명|성\s?명\s?:|연\s?락\s?처|주\s?소\s?:"
+    # 원문이 '김○○'처럼 다 가린 이름은 두고, '김○태'·'김은○'처럼 두 글자가 드러난 이름은 뺀다
+    r"|(?<![가-힣])[가-힣][○◯][가-힣](?![가-힣])|(?<![가-힣])[가-힣]{2}[○◯](?![가-힣○◯])"
 )
 CASE_PREFIXES = ("고랭지", "시설", "노지", "하우스", "터널", "가을", "봄", "여름", "겨울", "월동", "조생", "만생",
                  "반촉성", "촉성", "억제", "수경", "양액", "유기농", "친환경", "포트", "육묘", "재배", "작형")
@@ -68,7 +70,8 @@ KFS_URL = "https://www.data.go.kr/data/15092915/fileData.do"
 # NCPMS 작물 코드 앞 두 글자 -> 사이트 분류
 NCPMS_CATS = {"VC": "veg", "FT": "fruit", "FL": "flower", "FC": "grain", "IC": "herbal", "WP": "tree"}
 # 한국어 대표 이름을 고를 때의 순서: 표준 국명 > 정원식물 > 실내식물 > 작물명
-NAME_PRIORITY = ("kfs", "garden", "air", "ncpms")
+# kfs_loose: 변종·품종이 종으로 합쳐져 들어온 국명(예: 보은대추나무 -> 대추나무 종). 대표 이름으로는 마지막에만 쓴다
+NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose")
 ALT_FAMILIES = {"Compositae": "Asteraceae", "Leguminosae": "Fabaceae", "Cruciferae": "Brassicaceae", "Labiatae": "Lamiaceae",
                 "Umbelliferae": "Apiaceae", "Gramineae": "Poaceae", "Palmae": "Arecaceae", "Guttiferae": "Clusiaceae"}
 RANK_WORDS = ("var.", "subsp.", "f.")
@@ -493,7 +496,7 @@ def add_smartfarm(data_dir, resolve, targets, meta, problems):
     return fetched
 
 
-def add_cases(data_dir, targets, problems):
+def add_cases(data_dir, targets, problems, resolve, meta):
     """현장기술지원 사례를 이미 연결된 식물에 붙인다. 품목명은 작물명·국명과 맞추고, 안 맞으면 data/case_crop_map.tsv 를 본다."""
     raw = data_dir / "raw" / "cases" / "case"
     if not raw.exists():
@@ -509,7 +512,21 @@ def add_cases(data_dir, targets, problems):
     def find(crop):
         crop = crop.strip()
         if crop in extra:
-            return by_name.get(extra[crop]) if extra[crop] != "-" else None
+            target = extra[crop]
+            if target == "-":
+                return None
+            if re.search(r"[A-Za-z]", target):  # 학명으로 적은 경우
+                hit = resolve(target)
+                if not hit:
+                    problems.append(f"[사례] 연결표의 학명을 찾을 수 없음: {crop} -> {target}")
+                    return None
+                key, genus, rest, unit = hit
+                meta.setdefault(key, (genus, rest, unit))
+                if crop not in targets[key]["names"]["cases"]:
+                    targets[key]["names"]["cases"].append(crop)
+                    targets[key]["ko"].append(crop)
+                return key
+            return by_name.get(target)
         name = crop
         for _ in range(3):
             if name in by_name:
@@ -517,7 +534,7 @@ def add_cases(data_dir, targets, problems):
             name = next((name[len(p):] for p in CASE_PREFIXES if name.startswith(p) and len(name) > len(p)), name)
         return by_name.get(name)
 
-    linked, missing, dropped = 0, defaultdict(int), 0
+    linked, missing, dropped, linked_pairs = 0, defaultdict(int), 0, defaultdict(int)
     for path in raw.glob("*.json"):
         case = json.loads(path.read_text(encoding="utf-8"))
         if case.get("error") or not case.get("sections"):
@@ -535,7 +552,12 @@ def add_cases(data_dir, targets, problems):
             missing[case["crop"]] += 1
             continue
         targets[key]["cases"].append(case)
+        linked_pairs[(case["crop"], key)] += 1
         linked += 1
+    # 어떤 품목이 어느 식물에 붙었는지 사람이 검토할 수 있게 남긴다
+    (data_dir / "cases_linked.txt").write_text(
+        "\n".join(f"{crop}\t{targets[k]['names']['kfs'][:1] or targets[k]['crops'][:1] or targets[k]['ko'][:1]}\t{meta.get(k, ('', ''))[0]} {meta.get(k, ('', ''))[1]}\t{n}"
+                  for (crop, k), n in sorted(linked_pairs.items(), key=lambda x: -x[1])), encoding="utf-8")
     (data_dir / "cases_unmatched.txt").write_text(
         "\n".join(f"{c}\t{n}" for c, n in sorted(missing.items(), key=lambda x: -x[1])), encoding="utf-8")
     print(f"현장 진단 사례: {linked}건 연결, 품목이 안 맞은 {sum(missing.values())}건은 data/cases_unmatched.txt, 개인정보가 의심되어 뺀 줄 {dropped}개")
@@ -628,10 +650,10 @@ def add_kfs(data_dir, resolve, targets, meta, problems, families):
         t = targets[key]
         name = r["국명"].strip()
         # 변종·품종이 종으로 합쳐진 경우(예: 남복송 -> 소나무)보다 이름이 정확히 맞는 경우를 대표 이름으로 앞에 둔다
-        has_rank = lambda s: any(w in s.split() for w in RANK_WORDS)
-        exact = f"{genus} {rest}".strip() == used and has_rank(used) == has_rank(r["학명"])
+        ranks = lambda s: sum(w in RANK_WORDS for w in s.split())
+        exact = f"{genus} {rest}".strip() == used and ranks(used) == ranks(r["학명"])
         if name:
-            t["names"]["kfs"].insert(0 if exact else len(t["names"]["kfs"]), name)
+            t["names"]["kfs" if exact else "kfs_loose"].append(name)
             t["ko"].append(name)
         t["cats"].add("native")
         t["kfs"].append({
@@ -658,7 +680,7 @@ def main(data_dir, out_dir):
     kfs_date = add_kfs(data_dir, resolve, targets, meta, problems, families)
     ncsu_date = add_ncsu(data_dir, resolve, targets, meta, problems)
     smart_date = add_smartfarm(data_dir, resolve, targets, meta, problems)
-    cases_date = add_cases(data_dir, targets, problems)
+    cases_date = add_cases(data_dir, targets, problems, resolve, meta)
     corrections = apply_corrections(data_dir, resolve, targets, problems)
     for key in [k for k, t in targets.items() if t.get("hidden")]:
         del targets[key]

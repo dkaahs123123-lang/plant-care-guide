@@ -1,0 +1,119 @@
+논벼	['논벼']	Oryza sativa	122
+딸기	['딸기']	Fragaria × ananassa	101
+고추	['고추']	Capsicum annuum	98
+토마토	['토마토']	Solanum lycopersicum	83
+사과	['사과']	Malus × domestica	73
+오이	['오이']	Cucumis sativus	65
+수박	['수박']	Citrullus lanatus	44
+배	['돌배나무']	Pyrus pyrifolia	38
+배추	['배추']	Brassica rapa subsp. pekinensis	37
+포도	['포도']	Vitis 	36
+복숭아	['복숭아']	Prunus persica	35
+양파	['양파']	Allium cepa	34
+마늘	['마늘']	Allium sativum	30
+가지	['가지']	Solanum melongena	23
+방울토마토	['토마토']	Solanum lycopersicum	23
+상추	['상추']	Lactuca sativa	21
+감자	['감자']	Solanum tuberosum	20
+멜론	['멜론']	Cucumis melo	19
+대파	['파']	Allium fistulosum	19
+참외	['멜론']	Cucumis melo	18
+부추	['부추']	Allium tuberosum	17
+자두	['자두']	Prunus salicina	17
+콩	['콩']	Glycine max	16
+애호박	['애호박']	Cucurbita moschata	15
+단감	['감나무']	Diospyros kaki	12
+고구마	['고구마']	Ipomoea batatas	10
+참다래(키위	['참다래(키위,다래)']	Actinidia 	10
+매실	['매실']	Prunus mume	10
+가을배추	['배추']	Brassica rapa subsp. pekinensis	10
+들깨	['들깨']	Perilla frutescens	8
+블루베리	['블루베리']	Vaccinium corymbosum	8
+양배추	['양배추']	Brassica oleracea var. capitata	7
+봄감자	['감자']	Solanum tuberosum	6
+봄배추	['배추']	Brassica rapa subsp. pekinensis	6
+장미	['장미']	Rosa 	6
+옥수수	['옥수수']	Zea mays	6
+인삼	['인삼']	Panax ginseng	5
+생강	['생강']	Zingiber officinale	5
+떫은감	['감나무']	Diospyros kaki	5
+롱빈	['롱빈']	Vigna unguiculata subsp. sesquipedalis	5
+참깨	['참깨']	Sesamum indicum	4
+박	['박']	Lagenaria siceraria	4
+무	['무']	Raphanus sativus	4
+결구상추(양상추)	['상추']	Lactuca sativa	4
+단호박	['단호박']	Cucurbita maxima	4
+호박	['호박']	Cucurbita 	4
+잎들깨	['들깨']	Perilla frutescens	4
+공심채	['공심채']	Ipomoea aquatica	4
+쥬키니호박	['쥬키니호박']	Cucurbita pepo	3
+풋고추	['고추']	Capsicum annuum	3
+강낭콩	['강낭콩']	Phaseolus vulgaris	3
+국화	['국화']	Chrysanthemum morifolium	3
+유자	['감귤']	Citrus 	3
+열무	['무']	Raphanus sativus	3
+착색단고추	['고추']	Capsicum annuum	3
+두릅	['두릅나무']	Aralia elata	3
+달래	['달래']	Allium monanthum	3
+고수	['고수']	Coriandrum sativum	3
+일반토마토	['토마토']	Solanum lycopersicum	3
+여주	['여주']	Momordica charantia	3
+씨감자	['감자']	Solanum tuberosum	2
+대추	['대추']	Ziziphus jujuba	2
+수국	['수국']	Hydrangea macrophylla	2
+양앵두(체리)	['체리']	Prunus avium	2
+파	['파']	Allium fistulosum	2
+더덕	['더덕']	Codonopsis lanceolata	2
+연	['연']	Nelumbo nucifera	2
+뽕나무	['처진뽕나무']	Morus alba	2
+봄무	['무']	Raphanus sativus	2
+당근	['당근']	Daucus carota	2
+참마	['참마']	Dioscorea japonica	2
+가을무	['무']	Raphanus sativus	2
+귀리	['귀리']	Avena sativa	2
+시금치	['시금치']	Spinacia oleracea	2
+땅콩	['땅콩']	Arachis hypogaea	2
+망고	['망고']	Mangifera indica	2
+체리	['체리']	Prunus avium	2
+오크라	['오크라']	Abelmoschus esculentus	2
+알타리무	['무']	Raphanus sativus	1
+겨울감자	['감자']	Solanum tuberosum	1
+살구	['살구']	Prunus armeniaca	1
+단고추(피망	['고추']	Capsicum annuum	1
+무화과	['무화과']	Ficus carica	1
+가을감자	['감자']	Solanum tuberosum	1
+앵두	['앵두']	Prunus tomentosa	1
+춘란	['보춘화']	Cymbidium goeringii	1
+시클라멘	['시클라멘']	Cyclamen persicum	1
+미나리	['미나리']	Oenanthe javanica	1
+머위	['머위']	Petasites japonicus	1
+치자	['치자나무']	Gardenia jasminoides	1
+아스파라거스	['아스파라가스']	Asparagus 	1
+케일	['케일']	Brassica oleracea var. viridis	1
+안스리움	['안스리움']	Anthurium andraeanum	1
+스타티스	['스타티스']	Limonium sinuatum	1
+꽃도라지	['꽃도라지']	Eustoma russellianum	1
+천궁	['천궁']	Conioselinum officinale	1
+제라늄	['제라늄']	Pelargonium 	1
+황기	['황기']	Astragalus mongholicus	1
+바나나	['바나나']	Musa 	1
+땅두릅(독활)	['땅두릅(독활)']	Aralia cordata	1
+쌀귀리	['쌀귀리']	Avena nuda	1
+깻잎	['들깨']	Perilla frutescens	1
+작두콩	['작두콩']	Canavalia gladiata	1
+감귤	['감귤']	Citrus 	1
+초당옥수수	['옥수수']	Zea mays	1
+스킨답서스	['에피프레넘[골든 포토스]']	Epipremnum aureum	1
+지황	['지황']	Rehmannia glutinosa	1
+패션프루트	['패션푸룻']	Passiflora edulis	1
+보리	['보리']	Hordeum vulgare	1
+팔레높시스(호접란)	['팔레높시스']	Phalaenopsis 	1
+스토크	['스토크']	Matthiola incana	1
+라넌큐라스	['라넌큐라스']	Ranunculus asiaticus	1
+토란	['토란']	Colocasia esculenta	1
+일반벼	['논벼']	Oryza sativa	1
+올리브	['올리브']	Olea europaea	1
+덴파레	['덴파레']	Dendrobium 	1
+포인세티아	['포인세티아']	Euphorbia pulcherrima	1
+철쭉	['철쭉']	Rhododendron schlippenbachii	1
+복분자	['복분자딸기']	Rubus coreanus	1

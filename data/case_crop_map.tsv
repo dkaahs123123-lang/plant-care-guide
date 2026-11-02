@@ -1,0 +1,60 @@
+# 현장 진단 사례의 품목명 -> 연결할 식물. 작물 이름(도감에 있는 한국어 이름) 또는 학명을 적는다. '-' 는 연결하지 않음.
+# 품목명	연결	이유
+단감	감	감 품종 구분
+떫은감	감	감 품종 구분
+대파	파
+방울토마토	토마토	같은 종(Solanum lycopersicum)
+씨감자	감자
+알타리무	무	무 품종 구분
+풋고추	고추
+단고추(피망	피망	원문 품목명이 괄호가 덜 닫힘
+양앵두(체리)	체리
+결구상추(양상추)	상추	같은 종(Lactuca sativa)
+포인세티아	Euphorbia pulcherrima
+박	Lagenaria siceraria
+연	Nelumbo nucifera	연꽃
+쪽파	-	WFO 목록에 쪽파(대파x샬롯 교잡종) 학명이 없어 양파로 잘못 묶일 수 있음
+표고버섯	-	버섯은 식물이 아님
+느타리	-	버섯은 식물이 아님
+꿀벌	-	식물이 아님
+장류	-	식물이 아님 (가공식품)
+잡초방제	-	특정 식물이 아님
+토양물리	-	특정 식물이 아님
+소재류	-	특정 식물이 아님
+기타산채류	-	여러 식물을 묶은 이름
+기타과채류	-	여러 식물을 묶은 이름
+기타근채류	-	여러 식물을 묶은 이름
+기타준인과류	-	여러 식물을 묶은 이름
+기타관엽식물류	-	여러 식물을 묶은 이름
+롱빈	Vigna unguiculata subsp. sesquipedalis	긴강낭콩(아스파라거스콩)
+단호박	Cucurbita maxima	서양계 호박
+잎들깨	들깨	같은 식물(잎을 따는 재배)
+깻잎	들깨	같은 식물(잎을 따는 재배)
+공심채	Ipomoea aquatica
+착색단고추	고추	파프리카, 같은 종(Capsicum annuum)
+두릅	Aralia elata	두릅나무
+땅두릅(독활)	Aralia cordata	독활
+고수	Coriandrum sativum
+일반토마토	토마토
+초당옥수수	옥수수	같은 종(Zea mays)
+일반벼	논벼	같은 종(Oryza sativa)
+뽕나무	Morus alba
+참마	Dioscorea japonica
+치자	Gardenia jasminoides	치자나무
+꽃도라지	Eustoma russellianum	리시안서스(Eustoma grandiflorum 은 WFO 에서 이 이름의 이명)
+쌀귀리	Avena nuda	겉껍질이 잘 벗겨지는 귀리
+패션프루트	Passiflora edulis
+팔레높시스(호접란)	Phalaenopsis	호접란 속
+라넌큐라스	Ranunculus asiaticus
+토란	Colocasia esculenta
+올리브	Olea europaea
+바나나	Musa	재배 바나나는 교잡종이 많아 속에 연결
+백침계	-	선인장 품종명으로 보이나 학명을 확인하지 못함
+허브식물	-	여러 식물을 묶은 이름
+화훼	-	여러 식물을 묶은 이름
+난류	-	여러 식물을 묶은 이름
+엽채류	-	여러 식물을 묶은 이름
+기타	-	특정 식물이 아님
+기타화목류	-	여러 식물을 묶은 이름
+기타선인장/다육식물류	-	여러 식물을 묶은 이름
+농약	-	특정 식물이 아님
