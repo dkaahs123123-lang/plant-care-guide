@@ -71,7 +71,7 @@ KFS_URL = "https://www.data.go.kr/data/15092915/fileData.do"
 NCPMS_CATS = {"VC": "veg", "FT": "fruit", "FL": "flower", "FC": "grain", "IC": "herbal", "WP": "tree"}
 # 한국어 대표 이름을 고를 때의 순서: 표준 국명 > 정원식물 > 실내식물 > 작물명
 # kfs_loose: 변종·품종이 종으로 합쳐져 들어온 국명(예: 보은대추나무 -> 대추나무 종). 대표 이름으로는 마지막에만 쓴다
-NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose", "food")
+NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose", "food", "food_syn")
 ALT_FAMILIES = {"Compositae": "Asteraceae", "Leguminosae": "Fabaceae", "Cruciferae": "Brassicaceae", "Labiatae": "Lamiaceae",
                 "Umbelliferae": "Apiaceae", "Gramineae": "Poaceae", "Palmae": "Arecaceae", "Guttiferae": "Clusiaceae"}
 RANK_WORDS = ("var.", "subsp.", "f.")
@@ -757,23 +757,25 @@ def add_foodraw(data_dir, resolve, targets, problems):
     for it in json.loads((raw / "items.json").read_text(encoding="utf-8")):
         if it.get("ANML_INFO") != "식물성":
             continue
-        keys = []
+        keys = {}  # 식물 키 -> 식약처 학명이 그 식물과 같은 종 이름인지 (변종 차이는 같다고 보고, 옛 학명으로 이어진 것은 False)
         for name in foodraw_names(it.get("SCNNM_NM")):
-            hit, _ = resolve.from_full_name(name)
+            hit, used = resolve.from_full_name(name)
             # 도감에 이미 있는 식물에만 붙인다. 식품 원료 이름만으로 새 식물을 만들지 않는다
-            if hit and hit[0] in targets and hit[0] not in keys:
-                keys.append(hit[0])
+            if hit and hit[0] in targets:
+                keys[hit[0]] = keys.get(hit[0], False) or used.split()[:2] == f"{hit[1]} {hit[2]}".split()[:2]
         dash = lambda v: "" if clean(v) in ("", "-") else clean(v)
-        for key in keys:
+        for key, exact in keys.items():
             # 한국어 이름이 없는 식물은 식약처 원료 이름을 대표 이름으로 쓸 수 있게 한다 (NAME_PRIORITY 맨 끝).
             # 영어 이름이거나, 한 원료에 여러 식물이 묶여 있으면(예: 설탕단풍 = 두 종) 쓰지 않는다
+            # 옛 학명으로만 이어진 원료 이름은 다른 이름이 하나도 없을 때만 쓴다 (food_syn, 맨 끝)
             if len(keys) == 1 and re.search(r"[가-힣]", it.get("INGD_NM") or ""):
-                targets[key]["names"]["food"].append(clean(it.get("INGD_NM")))
+                targets[key]["names"]["food" if exact else "food_syn"].append(clean(it.get("INGD_NM")))
             targets[key]["food"].append({
                 "name": clean(it.get("INGD_NM")), "other": dash(it.get("NKNM_NM")), "sci": clean(it.get("SCNNM_NM")),
                 "edible": clean(it.get("EDIBLE_INFO")), "parts": dash(it.get("EDIBLE_USE_CONT")), "cond": dash(it.get("CHRTR_INFO_CONT")),
-                "herbal": dash(it.get("DRNM")),
+                "herbal": dash(it.get("DRNM")), "exact": exact,
             })
+            # 영양성분 연결용 이름은 옛 학명으로 이어진 원료도 쓴다 (완두 = Pisum sativum -> Lathyrus oleraceus)
             names["main"][clean(it.get("INGD_NM"))].add(key)
             for n in (it.get("NKNM_NM") or "").split(","):
                 if clean(n) and re.search(r"[가-힣]", n):
@@ -808,7 +810,7 @@ def add_foodnutri(data_dir, targets, food_names, problems):
     details = json.loads((raw / "details.json").read_text(encoding="utf-8"))
     # 이름이 여러 식물에 맞으면 더 믿을 만한 이름부터 본다: 작물 이름 > 대표 이름 > 다른 한국어 이름 > 식약처 원료 이름 > 식약처 다른 이름
     tiers = [defaultdict(set) for _ in range(3)]
-    own = [s for s in NAME_PRIORITY if s != "food"]  # 식약처 이름은 아래 두 단계에서 따로 본다
+    own = [s for s in NAME_PRIORITY if not s.startswith("food")]  # 식약처 이름은 아래 두 단계에서 따로 본다
     for key, t in targets.items():
         for n in t["crops"]:
             tiers[0][n].add(key)
@@ -1018,7 +1020,7 @@ def main(data_dir, out_dir):
         old.unlink()
     index = {}
     # 식약처 원료 이름은 다른 식물이 이미 쓰는 이름이면 대표 이름으로 쓰지 않는다 (같은 이름 두 식물이 생기지 않게)
-    own_name = lambda t: t.get("override_name") or next((n for s in NAME_PRIORITY if s != "food" for n in t["names"][s]), "")
+    own_name = lambda t: t.get("override_name") or next((n for s in NAME_PRIORITY if not s.startswith("food") for n in t["names"][s]), "")
     taken = {own_name(t) for t in targets.values()}
     for key, t in targets.items():
         genus, rest, unit = meta[key]
@@ -1051,7 +1053,7 @@ def main(data_dir, out_dir):
             doc["uses"] = uses
             t["cats"] |= use_cats
         (out / f"{key.replace(':', '-')}.json").write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-        name = own_name(t) or next((n for n in t["names"]["food"] if n not in taken), "")
+        name = own_name(t) or next((n for n in t["names"]["food"] + t["names"]["food_syn"] if n not in taken), "")
         index[key] = {
             "g": genus, "r": rest, "name": name, "crops": t["crops"], "ko": list(dict.fromkeys(t["ko"])),
             "cats": sorted(t["cats"]), "nd": len(t["diseases"]), "ni": len(t["insects"]),
