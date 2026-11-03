@@ -116,6 +116,16 @@ def read_tsv(path):
     return rows
 
 
+def author_key(author):
+    """저자명 비교용: 'Siebold & Zucc.' 와 'Siebold&Zucc' 를 같게 본다."""
+    return re.sub(r"[\s.]", "", author or "").lower()
+
+
+def author_names(author):
+    """저자명에서 성만 모은다: '(Regel) H. Hara' -> {'regel', 'hara'}"""
+    return {w.lower() for w in re.findall(r"[A-Za-z][a-z]{2,}", author or "") if w not in ("ex", "and")}
+
+
 class Resolver:
     """학명을 WFO의 받아들여진 이름으로 바꾼다. 결과는 (키, 속, 나머지 이름, 단위) 또는 None."""
 
@@ -123,38 +133,48 @@ class Resolver:
         self.con = sqlite3.connect(db_path)
         self.fixes = {r[0]: r[1] for r in read_tsv(fixes_path)}
 
-    def __call__(self, sci):
-        sci = self.fixes.get(sci.strip(), sci.strip())
+    def __call__(self, sci, author=""):
+        fixed = self.fixes.get(sci.strip())
+        sci = fixed or sci.strip()
         con = self.con
         if " " not in sci:
             row = con.execute("SELECT id FROM taxa WHERE name = ? AND rank = 'genus'", (sci,)).fetchone()
             return (f"g:{sci}", sci, "", "genus") if row else None
         row = con.execute(
-            "SELECT id, name, genus FROM taxa WHERE name = ? AND rank IN ('species','subspecies','variety','form')", (sci,)
+            "SELECT id, name, genus, author FROM taxa WHERE name = ? AND rank IN ('species','subspecies','variety','form')", (sci,)
         ).fetchone()
-        if not row:
-            syn = con.execute("SELECT accepted_id FROM synonyms WHERE name = ?", (sci,)).fetchone()
-            if syn:
-                row = con.execute("SELECT id, name, genus FROM taxa WHERE id = ?", (syn[0],)).fetchone()
+        # 같은 학명을 다른 저자가 다른 식물에 붙인 경우(예: Scirpus mucronatus L. / Pollich)가 있어 저자명이 맞는 이명을 고른다
+        syns = con.execute("SELECT accepted_id, author FROM synonyms WHERE name = ?", (sci,)).fetchall()
+        want = author_key(author) if not fixed else ""
+        same = [a for a, au in syns if want and author_key(au) == want]
+        if len({a for a, au in syns if want and author_names(au) == author_names(author)}) > 1:
+            same = []  # 같은 저자의 이명이 서로 다른 식물로 이어지면 고를 근거가 없어 예전처럼 첫 번째를 쓴다
+        # 'Maxim.' 과 'Maxim. ex Regel' 처럼 표기만 다른 저자는 같은 이름으로 본다
+        if same and not (row and author_names(row[3]) and (author_names(row[3]) <= author_names(author)
+                                                          or author_names(author) <= author_names(row[3]))):
+            row = None
+        if not row and syns:
+            row = con.execute("SELECT id, name, genus, author FROM taxa WHERE id = ?", ((same or [syns[0][0]])[0],)).fetchone()
         if not row:
             return None
-        tid, name, genus = row
+        tid, name, genus, _ = row
         return (tid[4:], genus, name[len(genus):].strip(), "species")
 
     def from_full_name(self, full):
         """'Actaea asiatica H. Hara' 처럼 저자명이 붙은 학명에서 이름만 골라 찾는다."""
         full = self.fixes.get(full.strip(), full.strip())
         toks = full.split()
+        ranks = [i for i, t in enumerate(toks) if t in RANK_WORDS and i + 1 < len(toks)]
         candidates = []
-        for i, t in enumerate(toks):
-            if t in RANK_WORDS and i + 1 < len(toks):
-                candidates.append(" ".join(toks[:2] + [t, toks[i + 1]]))
-        candidates.append(" ".join(toks[:2]))
-        for c in candidates:
-            hit = self(c)
+        for n, i in enumerate(ranks):
+            end = ranks[n + 1] if n + 1 < len(ranks) else len(toks)
+            candidates.append((" ".join(toks[:2] + [toks[i], toks[i + 1]]), " ".join(toks[i + 2:end])))
+        candidates.append((" ".join(toks[:2]), " ".join(toks[2:ranks[0] if ranks else len(toks)])))
+        for c, author in candidates:
+            hit = self(c, author)
             if hit:
                 return hit, c
-        return None, candidates[0]
+        return None, candidates[0][0]
 
 
 def ncpms_disease(d, crop):
@@ -426,12 +446,23 @@ def ncsu_item(page):
             facts.append(list(hw))
     if not any(k == "다 자란 폭" for k, _ in facts) and f.get("Available Space To Plant"):
         facts.append(["심을 자리 폭", ", ".join(ncsu_ko.SPACE.get(v, v) for v in f["Available Space To Plant"])])
-    for key in ("Resistance To Challenges", "Problems", "Poison Severity", "Poison Part", "Poison Toxic Principle", "Country Or Region Of Origin"):
+    for key in ("Resistance To Challenges", "Problems", "Poison Severity", "Poison Part"):
         if f.get(key):
             notes.append([ncsu_ko.LABELS[key], ", ".join(ncsu_ko.ko(v) for v in f[key])])
+    # 독성 성분과 원산지는 옮기지 못한 값이 있으면 칸 이름에 (영문)을 붙인다
+    if f.get("Poison Toxic Principle"):
+        got = [ncsu_ko.toxin(v) for v in f["Poison Toxic Principle"]]
+        label = ncsu_ko.LABELS["Poison Toxic Principle"] + ("" if all(ok for _, ok in got) else " (영문)")
+        notes.append([label, ", ".join(v for v, _ in got)])
+    if f.get("Country Or Region Of Origin"):
+        got = [(ncsu_ko.origin(v), v) for v in f["Country Or Region Of Origin"]]
+        label = ncsu_ko.LABELS["Country Or Region Of Origin"] + ("" if all(ko for ko, _ in got) else " (영문)")
+        notes.append([label, ", ".join(ko or v for ko, v in got)])
     pests = [v for k, vals in f.items() if k.endswith("has some common insect problems") for v in vals]
     if pests:
-        notes.append(["잘 생기는 해충 (영문)", ", ".join(pests)])
+        got = [ncsu_ko.pest(v) for v in pests]
+        label = "잘 생기는 해충" + ("" if all(ok for _, ok in got) else " (영문)")
+        notes.append([label, ", ".join(dict.fromkeys(v for v, _ in got))])
     tags = " ".join(f.get("Tags", []))
     pets = [ko for tag, ko in (("#problem for cats", "고양이"), ("#problem for dogs", "개"), ("#problem for horses", "말")) if tag in tags]
     zmin = None if annual else ncsu_ko.zone_min(f.get("USDA Plant Hardiness Zone", []))
@@ -652,6 +683,13 @@ def apply_corrections(data_dir, resolve, targets, problems):
             t["override_name"] = action
         elif part == "전체" and action == "숨김":
             t["hidden"] = True
+        elif part == "산림청" and action.startswith("크기:"):
+            hit = [x for x in t["kfs"] if x.get("name") == item]
+            if not hit:
+                problems.append(f"[고침표] 산림청 항목을 찾을 수 없음: {target} {item}")
+                continue
+            for x in hit:
+                x["size"] = action[len("크기:"):].strip()
         elif part in CORRECTION_PARTS and action == "숨김":
             field = CORRECTION_PARTS[part]
             if field == "pests":
@@ -717,8 +755,14 @@ def add_kfs(data_dir, resolve, targets, meta, problems, families):
         t = targets[key]
         name = r["국명"].strip()
         # 변종·품종이 종으로 합쳐진 경우(예: 남복송 -> 소나무)보다 이름이 정확히 맞는 경우를 대표 이름으로 앞에 둔다
+        # 속만 옮겨진 학명(예: 수크령 Pennisetum alopecuroides -> Cenchrus alopecuroides)도 종소명이 같으면 정확히 맞는 것으로 본다.
+        # 다른 종에 합쳐진 이름(예: 섬나무딸기 -> 산딸기 종)은 그대로 뒤로 미룬다. 'var. japonica' 같은 기준 변종은 종으로 친다
         ranks = lambda s: sum(w in RANK_WORDS for w in s.split())
-        exact = f"{genus} {rest}".strip() == used and ranks(used) == ranks(r["학명"])
+        stem = lambda e: re.sub(r"(um|us|a|is|e|os|on)$", "", e.lower())
+        toks = f"{genus} {rest}".split()
+        accepted_ranks = 0 if len(toks) == 4 and toks[3] == toks[1] else ranks(" ".join(toks))
+        same_epithet = stem(used.split()[-1]) == stem((toks[:2] if accepted_ranks == 0 else toks)[-1])
+        exact = ranks(used) == ranks(r["학명"]) == accepted_ranks and same_epithet
         if name:
             t["names"]["kfs" if exact else "kfs_loose"].append(name)
             t["ko"].append(name)
