@@ -18,7 +18,7 @@ const CATS = {
   native: ["우리나라 식물", "산림청 표준식물종 목록에 있는 식물입니다. 꽃 피는 달, 크기, 보호식물 여부를 볼 수 있습니다."],
   tree: ["나무", "농촌진흥청 NCPMS의 나무 분류입니다."],
   // 쓰임·효능별 목록. 식물 화면의 '쓰임과 효능' 칸과 같은 자료로 나눴다.
-  "use-food": ["먹을 수 있는 식물", "농촌진흥청이 채소·과일·곡식으로 나눈 작물과, 먹을 수 있는 부위가 있다고 자료에 적힌 식물입니다. 먹기 전에 식물 화면의 '조심할 점'을 꼭 확인하세요."],
+  "use-food": ["먹을 수 있는 식물", "식약처가 식품 원료로 정한 식물, 농촌진흥청이 채소·과일·곡식으로 나눈 작물, 먹을 수 있는 부위가 있다고 자료에 적힌 식물입니다. 영양성분이 있으면 함께 보여 드립니다. 먹기 전에 식물 화면의 '조심할 점'을 꼭 확인하세요."],
   "use-med": ["약재로 쓰는 식물", "한국수목원정원관리원 자료에 한방이나 민간에서 약재로 쓴다고 적힌 우리 식물입니다. 병을 고친다는 뜻이 아니니, 약으로 쓰려면 의사나 약사와 먼저 상담하세요."],
   "use-air": ["공기정화 식물", "농촌진흥청 국립원예특작과학원이 고른 공기정화식물입니다."],
   "use-bee": ["벌·나비를 부르는 식물", "벌, 나비처럼 꽃가루를 옮기는 곤충이 찾아오는 식물입니다. 대부분 미국 노스캐롤라이나주립대 자료라 미국에서 관찰한 내용입니다."],
@@ -750,6 +750,28 @@ function casesCard(c) {
     </section>`;
 }
 
+// 식약처 원료: 한국어 이름 원료를 먼저 보여 주고, 같은 학명으로 묶인 다른 원료(외국 품종 등)는 접어 둔다
+const mfdsItem = it => `
+      <div class="facts">
+        <div class="fact"><span class="k">원료 이름</span><span class="v">${esc(it.name)}${it.other ? ` <span class="muted small">(${esc(it.other)})</span>` : ""}</span></div>
+        <div class="fact"><span class="k">식품 원료로</span><span class="v">${it.edible === "가능" ? "쓸 수 있음" : it.edible === "제한" ? "정해진 식품에만 제한적으로 쓸 수 있음" : esc(it.edible)}</span></div>
+        ${it.parts ? `<div class="fact"><span class="k">쓸 수 있는 부위</span><span class="v">${esc(it.parts)}</span></div>` : ""}
+        ${it.herbal ? `<div class="fact"><span class="k">생약 이름</span><span class="v">${esc(it.herbal)}</span></div>` : ""}
+      </div>
+      ${it.cond ? `<p class="small genus-note">사용 조건: ${esc(it.cond)}</p>` : ""}`;
+function mfdsShown(items) {
+  const ko = items.filter(it => /[가-힣]/.test(it.name));
+  const shown = (ko.length ? ko : items).slice(0, 3);
+  return { shown, more: items.filter(it => !shown.includes(it)) };
+}
+
+// 영양성분: 식품을 바꿔 고르면 그 식품의 값으로 다시 그린다
+let NUTRI = [];
+const nutriFacts = n => `<div class="facts">${n.values.map(([k, v, unit]) => `<div class="fact"><span class="k">${esc(k)}</span><span class="v mono">${esc(v)} ${esc(unit)}</span></div>`).join("")}</div>`;
+document.addEventListener("change", e => {
+  if (e.target.id === "nutri-pick") document.getElementById("nutri-body").innerHTML = nutriFacts(NUTRI[+e.target.value]);
+});
+
 // 쓰임과 효능: 자료마다 적힌 쓰임을 출처별로 나눠 보여 준다. 효능을 새로 판단하지 않고 적힌 대로만 옮긴다.
 const USE_KINDS = { med: "약재", food: "먹는 법", bee: "꿀벌", caution: "조심" };
 const srcBadge = (country, env) => `<span class="badge region-badge${country === "한국" ? "" : " abroad"}">${country} · ${env}</span>`;
@@ -760,6 +782,20 @@ function usesCard(u) {
     <h3 class="sub">먹는 작물 ${srcBadge("한국", "농가·텃밭")}</h3>
     <p>농촌진흥청 작물 분류에서 <b>${u.crop.kinds.map(esc).join(", ")}</b>(으)로 나뉘는 작물입니다${u.crop.crops.length ? ` (${u.crop.crops.map(c => `‘${esc(c)}’`).join(", ")})` : ""}.</p>
     <div class="src">출처: ${esc(u.crop.source)} 작물 분류 · <a href="${esc(u.crop.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
+  if (u.mfds) parts.push(`
+    <h3 class="sub">우리나라 식품 원료 기준 ${srcBadge("한국", "식품")}</h3>
+    ${mfdsShown(u.mfds.items).shown.map(mfdsItem).join("")}
+    ${mfdsShown(u.mfds.items).more.length ? `<details class="more-items"><summary>같은 식물로 묶인 원료 ${mfdsShown(u.mfds.items).more.length}개 더 보기</summary>${mfdsShown(u.mfds.items).more.map(mfdsItem).join("")}</details>` : ""}
+    <p class="small muted">식품의약품안전처가 식품 원료로 쓸 수 있다고 정한 내용입니다. 적힌 부위만 해당하고, 다른 부위는 식품 원료로 쓸 수 없습니다. 집에서 길러 먹어도 된다는 뜻은 아니니 손질과 먹는 양에 주의하세요.</p>
+    <div class="src">출처: ${esc(u.mfds.source)} · 확인일 ${esc(u.mfds.retrieved)} · 원문을 고치지 않고 실었습니다 · <a href="${esc(u.mfds.url)}" target="_blank" rel="noopener">자료 안내</a> · <a href="https://www.foodsafetykorea.go.kr/portal/safefoodlife/foodMeterial/foodMeterialDB.do?menu_no=2968&amp;menu_grp=MENU_NEW04" target="_blank" rel="noopener">식품안전나라 식품원료 목록</a></div>`);
+  if (u.nutri) {
+    NUTRI = u.nutri.items;
+    parts.push(`
+    <h3 class="sub">영양성분 <span class="muted small">먹는 부분 100g당</span> ${srcBadge("한국", "식품")}</h3>
+    ${NUTRI.length > 1 ? `<label class="field small">식품 고르기 <select id="nutri-pick">${NUTRI.map((n, i) => `<option value="${i}">${esc(n.name)}</option>`).join("")}</select></label>` : `<p class="small">${esc(NUTRI[0].name)}</p>`}
+    <div id="nutri-body">${nutriFacts(NUTRI[0])}</div>
+    <div class="src">출처: ${esc(u.nutri.source)} · ${esc(u.nutri.license)} · 확인일 ${esc(u.nutri.retrieved)} · 값을 바꾸지 않고 실었습니다 · <a href="${esc(u.nutri.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
+  }
   if (u.air) parts.push(`
     <h3 class="sub">공기정화 ${srcBadge("한국", "실내")}</h3>
     <p>농촌진흥청 국립원예특작과학원이 고른 공기정화식물입니다.</p>

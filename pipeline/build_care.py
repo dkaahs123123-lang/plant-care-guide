@@ -50,6 +50,11 @@ SMART_FIELDS = [
     ("deSuplyQy", "1일 급액량(㏄/day)"), ("grwtLt", "생장길이"), ("stemThck", "줄기굵기"), ("fcluHg", "화방높이"),
     ("plln", "초장"), ("flgYld", "엽수"), ("crownDnt", "관부직경"), ("day1s", "1화방 출뢰일수"),
 ]
+FOODRAW_SOURCE = "식품의약품안전처 수입식품 원료정보 (공공데이터포털)"
+FOODRAW_URL = "https://www.data.go.kr/data/15111777/openapi.do"
+NUTRI_SOURCE = "농촌진흥청 국립식량과학원 국가표준식품성분 DB 10.4 (공공데이터포털)"
+NUTRI_URL = "https://www.data.go.kr/data/15143598/openapi.do"
+NUTRI_LICENSE = "공공누리 제4유형 (출처표시, 상업적 이용금지, 변경금지)"
 CASES_SOURCE = "농촌진흥청 농사로 현장기술지원 사례"
 CASES_URL = "https://www.nongsaro.go.kr/portal/ps/psz/psza/contentSub.ps?menuId=PS00077&cntntsNo="
 CASES_LICENSE = "공공누리 제4유형 (출처표시, 상업적 이용금지, 변경금지)"
@@ -66,7 +71,7 @@ KFS_URL = "https://www.data.go.kr/data/15092915/fileData.do"
 NCPMS_CATS = {"VC": "veg", "FT": "fruit", "FL": "flower", "FC": "grain", "IC": "herbal", "WP": "tree"}
 # 한국어 대표 이름을 고를 때의 순서: 표준 국명 > 정원식물 > 실내식물 > 작물명
 # kfs_loose: 변종·품종이 종으로 합쳐져 들어온 국명(예: 보은대추나무 -> 대추나무 종). 대표 이름으로는 마지막에만 쓴다
-NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose")
+NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose", "food")
 ALT_FAMILIES = {"Compositae": "Asteraceae", "Leguminosae": "Fabaceae", "Cruciferae": "Brassicaceae", "Labiatae": "Lamiaceae",
                 "Umbelliferae": "Apiaceae", "Gramineae": "Poaceae", "Palmae": "Arecaceae", "Guttiferae": "Clusiaceae"}
 RANK_WORDS = ("var.", "subsp.", "f.")
@@ -307,7 +312,7 @@ def air_item(xml):
 
 def new_target():
     return {"crops": [], "ko": [], "names": {s: [] for s in NAME_PRIORITY}, "cats": set(), "kfs": [], "web": None, "smart": None, "cases": [],
-            "diseases": [], "insects": [], "grow": [], "air": [], "notes": [], "air_notes": []}
+            "diseases": [], "insects": [], "grow": [], "air": [], "notes": [], "air_notes": [], "food": [], "nutri": []}
 
 
 def add_ncpms(data_dir, resolve, targets, meta, problems):
@@ -733,6 +738,120 @@ def apply_corrections(data_dir, resolve, targets, problems):
     return log
 
 
+def foodraw_names(sci):
+    """'Malus pumila Mill. / Malus domestica Bor' 처럼 여러 학명이 붙은 칸을 하나씩 나눈다. 한글 설명이 섞인 조각은 뺀다."""
+    for piece in re.split(r"\s*/\s*|\s+또는\s+", sci or ""):
+        piece = piece.replace("ssp.", "subsp.").strip()
+        if re.match(r"[A-Z][a-z]+ [a-z]", piece) and not re.search(r"[가-힣]", piece):
+            yield piece
+
+
+def add_foodraw(data_dir, resolve, targets, problems):
+    """식약처 식품 원료 목록을 학명으로 도감의 식물에 붙인다. 이름 -> 식물 키 묶음(영양성분 연결에 씀)을 돌려준다."""
+    raw = data_dir / "raw" / "foodraw"
+    names = {"main": defaultdict(set), "other": defaultdict(set)}
+    if not (raw / "items.json").exists():
+        return None, names
+    fetched = json.loads((raw / "fetched.json").read_text(encoding="utf-8"))["fetched"]
+    linked = 0
+    for it in json.loads((raw / "items.json").read_text(encoding="utf-8")):
+        if it.get("ANML_INFO") != "식물성":
+            continue
+        keys = []
+        for name in foodraw_names(it.get("SCNNM_NM")):
+            hit, _ = resolve.from_full_name(name)
+            # 도감에 이미 있는 식물에만 붙인다. 식품 원료 이름만으로 새 식물을 만들지 않는다
+            if hit and hit[0] in targets and hit[0] not in keys:
+                keys.append(hit[0])
+        dash = lambda v: "" if clean(v) in ("", "-") else clean(v)
+        for key in keys:
+            # 한국어 이름이 없는 식물은 식약처 원료 이름을 대표 이름으로 쓸 수 있게 한다 (NAME_PRIORITY 맨 끝).
+            # 영어 이름이거나, 한 원료에 여러 식물이 묶여 있으면(예: 설탕단풍 = 두 종) 쓰지 않는다
+            if len(keys) == 1 and re.search(r"[가-힣]", it.get("INGD_NM") or ""):
+                targets[key]["names"]["food"].append(clean(it.get("INGD_NM")))
+            targets[key]["food"].append({
+                "name": clean(it.get("INGD_NM")), "other": dash(it.get("NKNM_NM")), "sci": clean(it.get("SCNNM_NM")),
+                "edible": clean(it.get("EDIBLE_INFO")), "parts": dash(it.get("EDIBLE_USE_CONT")), "cond": dash(it.get("CHRTR_INFO_CONT")),
+                "herbal": dash(it.get("DRNM")),
+            })
+            names["main"][clean(it.get("INGD_NM"))].add(key)
+            for n in (it.get("NKNM_NM") or "").split(","):
+                if clean(n) and re.search(r"[가-힣]", n):
+                    names["other"][clean(n)].add(key)
+        linked += bool(keys)
+    print(f"식품 원료(식약처): 식물성 원료 {linked}개를 도감 식물에 연결")
+    return fetched, names
+
+
+# 화면에 보여 줄 영양성분 (원문 성분 이름, 화면 이름). 원문 값은 바꾸지 않는다
+NUTRIENTS = [("에너지", "열량"), ("수분", "수분"), ("단백질", "단백질"), ("지방", "지방"), ("탄수화물", "탄수화물"), ("당류", "당류"),
+             ("총 식이섬유", "식이섬유"), ("칼슘", "칼슘"), ("철", "철"), ("칼륨", "칼륨"), ("나트륨", "나트륨"),
+             ("비타민A", "비타민 A"), ("베타카로틴", "베타카로틴"), ("비타민 C", "비타민 C"), ("비타민 E", "비타민 E"), ("엽산-엽산당량", "엽산"), ("비타민 K", "비타민 K")]
+
+
+NUTRI_TREE_GROUPS = ("견과 및 종실류", "채소류", "과일류")
+# 식품 이름이 식물 이름과 다른 것: 멥쌀·찹쌀은 벼의 쌀
+NUTRI_ALIAS = {"멥쌀": "벼", "찹쌀": "벼"}
+# 이름은 맞지만 다른 식물인 식품: 머스캣베일리에이는 머루가 아닌 포도 품종
+# 미역취·일당귀는 도감에 없는 다른 식물이라 앞 이름(취나물, 당귀)의 식물에 붙이지 않는다
+# 땅두릅은 두릅나무가 아닌 독활(Aralia cordata)이다
+NUTRI_SKIP = {"머루, 머스켓베일리에이, 생것", "취나물, 미역취, 생것", "당귀, 일당귀, 잎, 생것",
+              "두릅, 땅두릅, 생것", "두릅, 땅두릅, 잎, 생것", "두릅, 땅두릅, 줄기, 생것"}
+
+
+def add_foodnutri(data_dir, targets, food_names, problems):
+    """국가표준식품성분의 '생것' 식품을 이름으로 식물에 붙인다. '감, 단감, 생것' -> '감' 또는 '감나무'."""
+    raw = data_dir / "raw" / "foodnutri"
+    if not (raw / "details.json").exists():
+        return None
+    fetched = json.loads((raw / "fetched.json").read_text(encoding="utf-8"))["fetched"]
+    details = json.loads((raw / "details.json").read_text(encoding="utf-8"))
+    # 이름이 여러 식물에 맞으면 더 믿을 만한 이름부터 본다: 작물 이름 > 대표 이름 > 다른 한국어 이름 > 식약처 원료 이름 > 식약처 다른 이름
+    tiers = [defaultdict(set) for _ in range(3)]
+    own = [s for s in NAME_PRIORITY if s != "food"]  # 식약처 이름은 아래 두 단계에서 따로 본다
+    for key, t in targets.items():
+        for n in t["crops"]:
+            tiers[0][n].add(key)
+        main = t.get("override_name") or next((n for s in own for n in t["names"][s]), "")
+        if main:
+            tiers[1][main].add(key)
+        for n in t["ko"] + [n for s in own for n in t["names"][s]]:
+            tiers[2][n].add(key)
+    tiers += [food_names["main"], food_names["other"]]
+
+    def find(name):
+        for tier in tiers:
+            if tier.get(name):
+                return tier[name]
+        return set()
+    linked = 0
+    for f in json.loads((raw / "list.json").read_text(encoding="utf-8")):
+        if f["food_Code"] not in details:
+            continue
+        head, *rest = [x.strip() for x in f["food_Nm"].split(",")]
+        head = NUTRI_ALIAS.get(head, head)
+        if f["food_Nm"] in NUTRI_SKIP:
+            continue
+        # '두릅, 땅두릅'처럼 뒤에 따로 있는 식물 이름이 오면 그 식물에 붙인다
+        # 앞 이름이 식물 이름일 때만 본다 ('수제비면, 감자', '잡곡, 현미'처럼 가공식품은 붙이지 않는다)
+        keys = next((k for k in map(find, rest) if len(k) == 1), set()) if find(head) else set()
+        # '감' -> '감나무'는 과일·채소·견과에만 쓴다 (곡류의 '국수'가 국수나무로 가지 않게)
+        keys = keys or find(head) or (find(head + "나무") if f["food_Grupp"] in NUTRI_TREE_GROUPS else set())
+        if len(keys) > 1:
+            problems.append(f"[식품성분] 이름이 여러 식물에 맞아 연결하지 않음: {f['food_Nm']}")
+            continue
+        if not keys:
+            continue
+        rows = {n: (v, u) for _, n, v, u in details[f["food_Code"]]}
+        values = [[label, *rows[n]] for n, label in NUTRIENTS if n in rows and rows[n][0] not in ("", "-")]
+        if values:
+            targets[next(iter(keys))]["nutri"].append({"name": f["food_Nm"], "group": f["food_Grupp"], "year": f["examin_Year"],
+                                                       "origin": f["origin_Nm"], "values": values})
+            linked += 1
+    print(f"영양성분(국가표준식품성분): 생것 식품 {linked}개를 식물에 연결")
+    return fetched
+
+
 def write_climate(data_dir, out_path):
     """관측소별 겨울 최저기온 30년 평균. 20번 이상의 겨울 기록이 있는 관측소만 쓴다."""
     raw = data_dir / "raw" / "climate"
@@ -851,6 +970,14 @@ def use_info(t, dates):
     if food:
         uses["crop"] = {"kinds": food, "crops": t["crops"], "source": NCPMS_SOURCE, "url": NCPMS_URL}
         cats.add("use-food")
+    if t["food"]:
+        uses["mfds"] = {"items": t["food"], "source": FOODRAW_SOURCE, "url": FOODRAW_URL, "retrieved": dates["food"]}
+        cats.add("use-food")
+    if t["nutri"]:
+        # 이름이 짧은 식품(예: '감자, 생것')을 먼저 보여 준다
+        items = sorted(t["nutri"], key=lambda x: (x["name"].count(","), x["name"]))
+        uses["nutri"] = {"items": items, "source": NUTRI_SOURCE, "url": NUTRI_URL, "license": NUTRI_LICENSE, "retrieved": dates["nutri"]}
+        cats.add("use-food")
     web = (t["web"] or {}).get("uses")
     if web:
         uses["web"] = {**web, "source": NCSU_SOURCE, "url": t["web"]["url"], "retrieved": dates["ncsu"]}
@@ -878,6 +1005,8 @@ def main(data_dir, out_dir):
     ncsu_date = add_ncsu(data_dir, resolve, targets, meta, problems)
     smart_date = add_smartfarm(data_dir, resolve, targets, meta, problems)
     cases_date = add_cases(data_dir, targets, problems, resolve, meta)
+    food_date, food_names = add_foodraw(data_dir, resolve, targets, problems)
+    nutri_date = add_foodnutri(data_dir, targets, food_names, problems)
     corrections = apply_corrections(data_dir, resolve, targets, problems)
     for key in [k for k, t in targets.items() if t.get("hidden")]:
         del targets[key]
@@ -888,6 +1017,9 @@ def main(data_dir, out_dir):
     for old in out.glob("*.json"):
         old.unlink()
     index = {}
+    # 식약처 원료 이름은 다른 식물이 이미 쓰는 이름이면 대표 이름으로 쓰지 않는다 (같은 이름 두 식물이 생기지 않게)
+    own_name = lambda t: t.get("override_name") or next((n for s in NAME_PRIORITY if s != "food" for n in t["names"][s]), "")
+    taken = {own_name(t) for t in targets.values()}
     for key, t in targets.items():
         genus, rest, unit = meta[key]
         doc = {"unit": unit}
@@ -914,12 +1046,12 @@ def main(data_dir, out_dir):
         if t["cases"]:
             doc["cases"] = {"source": CASES_SOURCE, "url": CASES_URL, "license": CASES_LICENSE, "retrieved": cases_date,
                             "items": sorted(t["cases"], key=lambda c: c.get("date", ""), reverse=True)}
-        uses, use_cats = use_info(t, {"air": air_date, "garden": garden_date, "ncsu": ncsu_date})
+        uses, use_cats = use_info(t, {"air": air_date, "garden": garden_date, "ncsu": ncsu_date, "food": food_date, "nutri": nutri_date})
         if uses:
             doc["uses"] = uses
             t["cats"] |= use_cats
         (out / f"{key.replace(':', '-')}.json").write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-        name = t.get("override_name") or next((n for s in NAME_PRIORITY for n in t["names"][s]), "")
+        name = own_name(t) or next((n for n in t["names"]["food"] if n not in taken), "")
         index[key] = {
             "g": genus, "r": rest, "name": name, "crops": t["crops"], "ko": list(dict.fromkeys(t["ko"])),
             "cats": sorted(t["cats"]), "nd": len(t["diseases"]), "ni": len(t["insects"]),
