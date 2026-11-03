@@ -446,14 +446,20 @@ def ncsu_item(page):
             facts.append(list(hw))
     if not any(k == "다 자란 폭" for k, _ in facts) and f.get("Available Space To Plant"):
         facts.append(["심을 자리 폭", ", ".join(ncsu_ko.SPACE.get(v, v) for v in f["Available Space To Plant"])])
-    for key in ("Resistance To Challenges", "Problems", "Poison Severity", "Poison Part"):
+    for key in ("Resistance To Challenges", "Problems"):
         if f.get(key):
             notes.append([ncsu_ko.LABELS[key], ", ".join(ncsu_ko.ko(v) for v in f[key])])
-    # 독성 성분과 원산지는 옮기지 못한 값이 있으면 칸 이름에 (영문)을 붙인다
+    # 독성은 '쓰임과 효능' 칸의 조심할 점으로 모은다. 옮기지 못한 값이 있으면 칸 이름에 (영문)을 붙인다
+    caution = []
+    for key in ("Poison Severity", "Poison Part"):
+        if f.get(key):
+            caution.append([ncsu_ko.LABELS[key], ", ".join(ncsu_ko.ko(v) for v in f[key])])
     if f.get("Poison Toxic Principle"):
         got = [ncsu_ko.toxin(v) for v in f["Poison Toxic Principle"]]
         label = ncsu_ko.LABELS["Poison Toxic Principle"] + ("" if all(ok for _, ok in got) else " (영문)")
-        notes.append([label, ", ".join(v for v, _ in got)])
+        caution.append([label, ", ".join(v for v, _ in got)])
+    if "Yes" in f.get("Causes Contact Dermatitis", []):
+        caution.append(["만졌을 때", "피부에 염증이 생길 수 있습니다"])
     if f.get("Country Or Region Of Origin"):
         got = [(ncsu_ko.origin(v), v) for v in f["Country Or Region Of Origin"]]
         label = ncsu_ko.LABELS["Country Or Region Of Origin"] + ("" if all(ko for ko, _ in got) else " (영문)")
@@ -464,9 +470,24 @@ def ncsu_item(page):
         label = "잘 생기는 해충" + ("" if all(ok for _, ok in got) else " (영문)")
         notes.append([label, ", ".join(dict.fromkeys(v for v, _ in got))])
     tags = " ".join(f.get("Tags", []))
+    tag_list = [t.strip().lower() for t in tags.split("#") if t.strip()]
     pets = [ko for tag, ko in (("#problem for cats", "고양이"), ("#problem for dogs", "개"), ("#problem for horses", "말")) if tag in tags]
+    if not caution and any(t.startswith("poisonous") for t in tag_list):
+        caution.append(["독성", "독이 있다고 표시되어 있습니다 (정도와 부위는 원문 참고)"])
+    attracts = [ncsu_ko.ATTRACTS.get(v, v) for v in f.get("Attracts", [])]
+    if "butterfly caterpillar host" in tag_list:
+        attracts.append("나비 애벌레 (잎을 먹고 자람)")
+    edible = [ncsu_ko.EDIBLE_TAGS[t] for t in tag_list if t in ncsu_ko.EDIBLE_TAGS]
+    uses = {}
+    if attracts:
+        uses["attracts"] = list(dict.fromkeys(attracts))
+    if edible:
+        uses["edible"] = list(dict.fromkeys(p for p in edible if p))
+    if caution or pets:
+        uses["caution"] = caution
+        uses["pets"] = pets
     zmin = None if annual else ncsu_ko.zone_min(f.get("USDA Plant Hardiness Zone", []))
-    return {"name": page["name"], "url": f"{NCSU_SITE}/plants/{page['slug']}/", "facts": facts, "notes": notes, "pets": pets,
+    return {"name": page["name"], "url": f"{NCSU_SITE}/plants/{page['slug']}/", "facts": facts, "notes": notes, "uses": uses,
             "zone": zmin[0] if zmin else None, "zoneC": zmin[1] if zmin else None}
 
 
@@ -780,6 +801,71 @@ def add_kfs(data_dir, resolve, targets, meta, problems, families):
     return "2021-10-20"  # 공공데이터포털에 표시된 자료 기준일
 
 
+# 쓰임과 효능: 정원식물 설명에서 약재·먹는 법·꿀벌·독에 관한 문장을 원문 그대로 골라 낸다.
+# 한 문장은 한 번만 싣고, 독에 관한 문장은 먹는 법으로 세지 않는다.
+GARDEN_USES = [
+    ("caution", re.compile(r"유독|중독|독성|독이 있")),
+    ("med", re.compile(r"한방|약용|약재|약으로|생약")),
+    ("food", re.compile(r"(?<![군장])식용|나물[로이을]|산나물|쌈[으이]|차로|먹는다|먹고|먹을 ?수|날 ?것으로 먹|절여")),
+    ("bee", re.compile(r"밀원|벌들이")),
+]
+AIR_GRADE = re.compile(r"([가-힣]+?)(제거량|발생량)\s*[:(]\s*(?:등급\s*:\s*)?(최상|중상|중하|최소|최하|상|중|하)")
+FOOD_KINDS = {"veg": "채소", "fruit": "과일", "grain": "곡식·콩·감자"}
+BEE_WORDS = ("벌", "나비", "꽃가루", "나방", "이 식물만")
+
+
+def garden_uses(items):
+    out = []
+    for it in items:
+        for text in (it["feature"], it["garden"], it["care"]):
+            for s in re.split(r"(?<=다\.)\s*", text or ""):
+                s = s.strip()
+                # 시나 책 제목을 옮긴 문장, 학명 줄임표에서 끊긴 조각은 뺀다
+                if not s.endswith("다.") or re.search(r"[“”『』]|정약용", s):
+                    continue
+                kinds = [k for k, pat in GARDEN_USES if pat.search(s)]
+                if "caution" in kinds:
+                    kinds = [k for k in kinds if k != "food"]
+                if kinds and not any(s == x[1] for x in out):
+                    out.append([it["name"], s, kinds])
+    return out
+
+
+def use_info(t, dates):
+    uses, cats = {}, set()
+    grades = []
+    for it in t["air"]:
+        for name, kind, grade in AIR_GRADE.findall(" ".join(it["effects"])):
+            label = f"{name} {kind}"
+            if label not in (g[0] for g in grades):
+                grades.append([label, grade])
+    if t["air"]:
+        uses["air"] = {"grades": grades, "source": AIR_SOURCE, "url": AIR_URL, "license": AIR_LICENSE, "retrieved": dates["air"]}
+        cats.add("use-air")
+    found = garden_uses(t["grow"])
+    if found:
+        uses["garden"] = {"items": found, "source": GARDEN_SOURCE, "url": GARDEN_URL, "retrieved": dates["garden"]}
+        kinds = {k for _, _, ks in found for k in ks}
+        cats |= {f"use-{k}" for k in kinds if k != "caution"} | ({"use-toxic"} if "caution" in kinds else set())
+    food = [FOOD_KINDS[c] for c in sorted(t["cats"]) if c in FOOD_KINDS]
+    if food:
+        uses["crop"] = {"kinds": food, "crops": t["crops"], "source": NCPMS_SOURCE, "url": NCPMS_URL}
+        cats.add("use-food")
+    web = (t["web"] or {}).get("uses")
+    if web:
+        uses["web"] = {**web, "source": NCSU_SOURCE, "url": t["web"]["url"], "retrieved": dates["ncsu"]}
+        # 먹을 수 있다는 표시와 독성이 함께 적힌 식물(예: 동의나물)은 손질법·양에 조건이 붙어 있어 '먹을 수 있는 식물' 목록에 넣지 않는다
+        if "edible" in web and not web.get("caution") and "use-toxic" not in cats:
+            cats.add("use-food")
+        if any(w in a for a in web.get("attracts", []) for w in BEE_WORDS):
+            cats.add("use-bee")
+        if web.get("caution"):
+            cats.add("use-toxic")
+        if web.get("pets"):
+            cats.add("use-pet")
+    return uses, cats
+
+
 def main(data_dir, out_dir):
     sys.stdout.reconfigure(encoding="utf-8")
     data_dir = Path(data_dir)
@@ -822,12 +908,16 @@ def main(data_dir, out_dir):
         if t["kfs"]:
             doc["kfs"] = {"source": KFS_SOURCE, "url": KFS_URL, "basis": kfs_date, "items": t["kfs"]}
         if t["web"]:
-            doc["web"] = {"source": NCSU_SOURCE, "retrieved": ncsu_date, **t["web"]}
+            doc["web"] = {"source": NCSU_SOURCE, "retrieved": ncsu_date, **{k: v for k, v in t["web"].items() if k != "uses"}}
         if t["smart"]:
             doc["smart"] = {"source": SMART_SOURCE, "url": SMART_URL, "retrieved": smart_date, **t["smart"]}
         if t["cases"]:
             doc["cases"] = {"source": CASES_SOURCE, "url": CASES_URL, "license": CASES_LICENSE, "retrieved": cases_date,
                             "items": sorted(t["cases"], key=lambda c: c.get("date", ""), reverse=True)}
+        uses, use_cats = use_info(t, {"air": air_date, "garden": garden_date, "ncsu": ncsu_date})
+        if uses:
+            doc["uses"] = uses
+            t["cats"] |= use_cats
         (out / f"{key.replace(':', '-')}.json").write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         name = t.get("override_name") or next((n for s in NAME_PRIORITY for n in t["names"][s]), "")
         index[key] = {

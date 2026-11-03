@@ -200,6 +200,13 @@ mark { background: var(--amber-soft); color: var(--ink); padding: 0 2px; border-
 .badge.web { background: var(--web-soft); color: var(--web); }
 .genus-note { background: var(--amber-soft); color: var(--ink); padding: 8px 12px; border-radius: 8px; }
 .card h3.sub { font-size: 16px; margin-top: 6px; }
+.tile.warn { background: var(--amber-soft); border-color: transparent; }
+.tile.warn:hover { border-color: var(--amber); }
+.uses h3.sub { margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.use-list { padding-left: 18px; display: grid; gap: 8px; }
+.use-list .badge { margin-right: 2px; }
+dl.caution { background: var(--amber-soft); padding: 8px 12px; border-radius: 8px; }
+.list-sub { margin: 18px 0 6px; color: var(--ink-2); }
 .pests { display: grid; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 details.pest { border-top: 1px solid var(--line); }
 details.pest:first-child { border-top: 0; }

@@ -17,8 +17,17 @@ const CATS = {
   garden: ["우리 꽃 정원식물", "정원에 심기 좋은 우리 자생식물입니다. 한국수목원정원관리원 자료입니다."],
   native: ["우리나라 식물", "산림청 표준식물종 목록에 있는 식물입니다. 꽃 피는 달, 크기, 보호식물 여부를 볼 수 있습니다."],
   tree: ["나무", "농촌진흥청 NCPMS의 나무 분류입니다."],
+  // 쓰임·효능별 목록. 식물 화면의 '쓰임과 효능' 칸과 같은 자료로 나눴다.
+  "use-food": ["먹을 수 있는 식물", "농촌진흥청이 채소·과일·곡식으로 나눈 작물과, 먹을 수 있는 부위가 있다고 자료에 적힌 식물입니다. 먹기 전에 식물 화면의 '조심할 점'을 꼭 확인하세요."],
+  "use-med": ["약재로 쓰는 식물", "한국수목원정원관리원 자료에 한방이나 민간에서 약재로 쓴다고 적힌 우리 식물입니다. 병을 고친다는 뜻이 아니니, 약으로 쓰려면 의사나 약사와 먼저 상담하세요."],
+  "use-air": ["공기정화 식물", "농촌진흥청 국립원예특작과학원이 고른 공기정화식물입니다."],
+  "use-bee": ["벌·나비를 부르는 식물", "벌, 나비처럼 꽃가루를 옮기는 곤충이 찾아오는 식물입니다. 대부분 미국 노스캐롤라이나주립대 자료라 미국에서 관찰한 내용입니다."],
+  "use-toxic": ["독이 있어 조심할 식물", "먹거나 만지면 해로울 수 있다고 자료에 적힌 식물입니다. 어린아이가 있는 집은 특히 조심하세요."],
+  "use-pet": ["반려동물에게 해로운 식물", "고양이, 개 등에게 해롭다고 미국 노스캐롤라이나주립대 자료에 표시된 식물입니다."],
 };
 const TILE_ORDER = ["indoor", "veg", "fruit", "flower", "herbal", "grain", "garden", "native"];
+const USE_ORDER = ["use-food", "use-med", "use-air", "use-bee", "use-toxic", "use-pet"];
+const WARN_CATS = ["use-toxic", "use-pet"];
 
 // 틀린 내용 신고: 어떤 식물의 어느 칸인지 채운 GitHub 이슈 작성 화면을 연다 (GitHub 계정 필요)
 const ISSUES = "https://github.com/dkaahs123123-lang/plant-care-guide/issues/new";
@@ -185,6 +194,17 @@ async function renderHome() {
           <span class="n">${fmt(count(cat))}종</span>
         </a>`).join("")}
     </div>
+    <section class="card">
+      <h2>쓰임·효능으로 찾기</h2>
+      <div class="tiles">
+        ${USE_ORDER.map(cat => `
+          <a class="tile${WARN_CATS.includes(cat) ? " warn" : ""}" href="#/c/${cat}">
+            <b>${CATS[cat][0]}</b>
+            <span class="n">${fmt(count(cat))}종</span>
+          </a>`).join("")}
+      </div>
+      <p class="small muted">자료에 적힌 쓰임을 출처와 함께 옮겼습니다. 병을 고친다는 뜻이 아니니, 약이나 음식으로 쓰기 전에 전문가와 상담하세요.</p>
+    </section>
     <a class="card feature" href="#/symptom">
       <h2>식물이 아파요</h2>
       <p>잎이 노래지거나 흰 가루가 생겼나요? 증상을 고르면 어떤 병이나 해충인지 찾아 드립니다.</p>
@@ -356,7 +376,7 @@ async function renderFixes() {
 function renderCategory(cat) {
   const [label, desc] = CATS[cat];
   const items = Object.entries(CI).filter(([, v]) => v.cats.includes(cat))
-    .sort((a, b) => byKo(a[1].name || a[1].g, b[1].name || b[1].g));
+    .sort((a, b) => !!b[1].name - !!a[1].name || byKo(a[1].name || fullName(a[1].g, a[1].r), b[1].name || fullName(b[1].g, b[1].r)));
   app.innerHTML = `
     <nav class="crumbs"><a href="#/">처음으로</a></nav>
     <section class="sheet-head"><h1 class="ko-title">${label}</h1><div class="author">${desc}</div></section>
@@ -370,7 +390,9 @@ function renderCategory(cat) {
       const nn = (n || "").replace(/\s+/g, "").toLowerCase();
       return (cho ? chosung(nn) : nn).includes(qq.toLowerCase());
     }));
-    list.innerHTML = shown.length ? shown.map(([k, v]) => plantRow(k, v)).join("") : `<div class="empty">찾는 식물이 이 목록에 없습니다.</div>`;
+    const unnamed = shown.findIndex(([, v]) => !v.name);
+    const rows = shown.map(([k, v], i) => (i === unnamed && i > 0 ? `<h3 class="sub list-sub">한국어 이름이 아직 없는 식물 ${fmt(shown.length - i)}종 (학명)</h3>` : "") + plantRow(k, v));
+    list.innerHTML = shown.length ? rows.join("") : `<div class="empty">찾는 식물이 이 목록에 없습니다.</div>`;
   };
   draw("");
   document.getElementById("cat-filter").addEventListener("input", e => draw(e.target.value.trim()));
@@ -538,7 +560,7 @@ async function renderTaxon(genus, id) {
     <section class="sheet-head">
       ${v?.name ? `<h1 class="ko-title">${esc(v.name)}</h1><div class="sci-line"><i>${esc(name)}</i> <span class="author">${esc(row[2])}</span></div>`
         : `<h1>${esc(name)}</h1><div class="author">${esc(row[2])}</div>`}
-      ${cats.length ? `<div class="tags">${cats.map(c => `<a class="badge" href="#/c/${c}">${CATS[c][0]}</a>`).join("")}</div>` : ""}
+      ${cats.length ? `<div class="tags">${cats.map(c => `<a class="badge${WARN_CATS.includes(c) ? " amber" : ""}" href="#/c/${c}">${CATS[c][0]}</a>`).join("")}</div>` : ""}
       <div class="vern" id="vern"><span class="loading">다른 이름 불러오는 중…</span></div>
     </section>
     <div id="care"><p class="loading">키우는 방법과 병해충 정보를 불러오는 중…</p></div>
@@ -696,7 +718,6 @@ function webCard(w, name) {
       <h2>인터넷 재배 정보</h2>
       ${regionLine("web")}
       <p class="small web-note">공공기관 자료가 아닌 미국 대학의 원예 자료입니다. 야외에 심는 것을 기준으로 해서 우리나라 환경, 특히 실내와는 다를 수 있습니다.</p>
-      ${w.pets?.length ? `<div class="tags"><span class="badge amber">${w.pets.join("·")}에게 해로움</span></div>` : ""}
       ${w.facts.length ? `<div class="facts">${w.facts.map(([k, v]) => `<div class="fact"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("")}</div>` : ""}
       ${w.notes.length ? `<dl class="prose">${w.notes.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
       <div class="src">출처: ${esc(w.source)} · 확인일 ${esc(w.retrieved)} · 정해진 항목 값만 한국어로 옮겼고, 목록에 없는 값은 영어 원문 그대로 두었습니다 · <a href="${esc(w.url)}" target="_blank" rel="noopener">원문 보기 (영어)</a><br>
@@ -726,6 +747,46 @@ function casesCard(c) {
         </details>`).join("")}
       </div>
       <div class="src">출처: ${esc(c.source)} · ${esc(c.license)} · 확인일 ${esc(c.retrieved)} · 문장은 고치지 않았고, 담당자·농가 정보가 담긴 '개요'와 개인정보가 의심되는 줄, 사진은 싣지 않았습니다. 전체는 원문에서 볼 수 있습니다 ${reportBtn("현장 진단 사례")}</div>
+    </section>`;
+}
+
+// 쓰임과 효능: 자료마다 적힌 쓰임을 출처별로 나눠 보여 준다. 효능을 새로 판단하지 않고 적힌 대로만 옮긴다.
+const USE_KINDS = { med: "약재", food: "먹는 법", bee: "꿀벌", caution: "조심" };
+const srcBadge = (country, env) => `<span class="badge region-badge${country === "한국" ? "" : " abroad"}">${country} · ${env}</span>`;
+function usesCard(u) {
+  const warn = u.web?.caution?.length || u.web?.pets?.length || u.garden?.items.some(([, , ks]) => ks.includes("caution"));
+  const parts = [];
+  if (u.crop) parts.push(`
+    <h3 class="sub">먹는 작물 ${srcBadge("한국", "농가·텃밭")}</h3>
+    <p>농촌진흥청 작물 분류에서 <b>${u.crop.kinds.map(esc).join(", ")}</b>(으)로 나뉘는 작물입니다${u.crop.crops.length ? ` (${u.crop.crops.map(c => `‘${esc(c)}’`).join(", ")})` : ""}.</p>
+    <div class="src">출처: ${esc(u.crop.source)} 작물 분류 · <a href="${esc(u.crop.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
+  if (u.air) parts.push(`
+    <h3 class="sub">공기정화 ${srcBadge("한국", "실내")}</h3>
+    <p>농촌진흥청 국립원예특작과학원이 고른 공기정화식물입니다.</p>
+    ${u.air.grades.length ? `<div class="facts">${u.air.grades.map(([k, v]) => `<div class="fact"><span class="k">${esc(k)} (실험 등급)</span><span class="v">${esc(v)}</span></div>`).join("")}</div>` : ""}
+    <p class="small muted">밀폐된 실험 공간에서 잰 등급입니다. 실제 집에서는 환기의 효과가 훨씬 큽니다.</p>
+    <div class="src">출처: ${esc(u.air.source)} · ${esc(u.air.license)} · 확인일 ${esc(u.air.retrieved)} · <a href="${esc(u.air.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
+  if (u.garden) parts.push(`
+    <h3 class="sub">우리 자료에 적힌 쓰임 ${srcBadge("한국", "자생지·정원")}</h3>
+    <ul class="use-list">${u.garden.items.map(([name, s, ks]) => `<li>${ks.map(k => `<span class="badge${k === "caution" ? " amber" : ""}">${USE_KINDS[k]}</span>`).join(" ")} ${esc(s)}${u.garden.items.some(x => x[0] !== name) ? ` <span class="muted small">(${esc(name)})</span>` : ""}</li>`).join("")}</ul>
+    <div class="src">출처: ${esc(u.garden.source)} · 확인일 ${esc(u.garden.retrieved)} · 설명 글에서 해당 문장을 고치지 않고 골라 실었습니다 · <a href="${esc(u.garden.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
+  const w = u.web;
+  if (w) parts.push(`
+    <h3 class="sub">미국 자료에 적힌 쓰임과 조심할 점 ${srcBadge("미국 노스캐롤라이나", "야외")}</h3>
+    ${w.pets?.length ? `<div class="tags"><span class="badge amber">${w.pets.map(esc).join("·")}에게 해로움</span></div>` : ""}
+    ${w.caution?.length ? `<dl class="prose caution">${w.caution.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
+    ${w.edible ? `<div class="facts"><div class="fact"><span class="k">먹을 수 있는 부위</span><span class="v">${w.edible.length ? esc(w.edible.join(", ")) : "먹을 수 있다고 표시됨 (부위는 원문 참고)"}</span></div></div>
+      ${warn ? `<p class="small genus-note">독성도 함께 적혀 있습니다. 원문에는 '적은 양을 제대로 손질했을 때'처럼 조건이 붙어 있을 수 있으니 먹지 않는 것이 안전합니다.</p>` : ""}` : ""}
+    ${w.attracts?.length ? `<div class="facts"><div class="fact"><span class="k">찾아오는 동물</span><span class="v">${esc(w.attracts.join(", "))}</span></div></div>` : ""}
+    <p class="small muted">미국에서 관찰하고 정리한 내용입니다. 먹는 방법과 중독 증상의 자세한 설명은 아직 영어 원문에만 있습니다.${w.edible ? " 우리나라에서 식품 원료로 쓸 수 있는지는 식약처 식품안전나라에서 확인할 수 있습니다." : ""}</p>
+    <div class="src">출처: ${esc(w.source)} · 확인일 ${esc(w.retrieved)} · 정해진 항목 값만 한국어로 옮겼습니다 · <a href="${esc(w.url)}" target="_blank" rel="noopener">원문 보기 (영어)</a>${w.edible ? ` · <a href="https://www.foodsafetykorea.go.kr/portal/safefoodlife/foodMeterial/foodMeterialDB.do?menu_no=2968&amp;menu_grp=MENU_NEW04" target="_blank" rel="noopener">식품안전나라 식품원료 목록</a>` : ""}</div>`);
+  return `
+    <section class="card uses">
+      <h2>쓰임과 효능</h2>
+      ${warn ? `<div class="verdict edge">독이 있거나 해로울 수 있다고 적힌 자료가 있습니다. 아래 '조심' 표시와 독성 내용을 먼저 확인하세요.</div>` : ""}
+      <p class="small genus-note">자료에 적힌 쓰임을 출처와 함께 옮긴 것으로, 병을 고친다는 뜻이 아닙니다. 약이나 음식으로 쓰기 전에 의사나 약사와 상담하세요. 먹을 수 있는 식물도 부위, 익은 정도, 먹는 양에 따라 해로울 수 있습니다.</p>
+      ${parts.join("")}
+      <p class="small">${reportBtn("쓰임과 효능")}</p>
     </section>`;
 }
 
@@ -770,6 +831,7 @@ async function renderCare(id, genus) {
   const pestSrc = own?.pests ? own : forGenus?.pests ? forGenus : null;
   box.innerHTML = [
     methods.some(m => m[2]) || isCrop(CI[id]) ? methodTabs(methods, CI[id]) : (id ? `<section class="card pending"><h2>키우는 방법</h2><p>이 식물은 아직 재배 자료가 없습니다. 확인되지 않은 정보는 싣지 않습니다.</p></section>` : ""),
+    own?.uses ? usesCard(own.uses) : !id && forGenus?.uses ? usesCard(forGenus.uses) : "",
     pestSrc ? pestCard(pestSrc, genus, id) : (id && methods.some(m => m[2]) ? `<section class="card pending"><h2>병해충</h2><p>이 식물은 아직 공공기관의 병해충 자료가 없습니다.</p></section>` : ""),
     own?.cases ? casesCard(own.cases) : "",
     own?.kfs ? kfsCard(own.kfs, CI[id]?.name) : "",

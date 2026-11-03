@@ -358,6 +358,30 @@ SPACE = {
 }
 
 
+# 'Attracts' 항목: 이 식물이 불러 모으는 동물
+ATTRACTS = {
+    "Bees": "벌",
+    "Butterflies": "나비",
+    "Pollinators": "꽃가루를 옮기는 곤충",
+    "Songbirds": "작은 새",
+    "Small Mammals": "작은 포유류",
+    "Moths": "나방",
+    "Hummingbirds": "벌새 (아메리카 대륙에만 사는 새)",
+    "Frogs": "개구리",
+    "Reptiles": "파충류",
+    "Specialized Bees": "이 식물만 찾는 벌",
+    "Bats": "박쥐",
+}
+
+# 태그 중 먹을 수 있는 부위를 알려 주는 것. 빈 문자열은 부위를 밝히지 않은 태그
+EDIBLE_TAGS = {
+    "edible fruits": "열매", "edible fruit": "열매", "edible flowers": "꽃", "edible leaves": "잎", "edible seeds": "씨",
+    "edible roots": "뿌리", "edible nuts": "견과", "edible stems": "줄기", "edible bulbs": "알뿌리", "edible buds": "눈(싹)",
+    "edible spice": "향신료", "edible": "", "edible garden": "", "easy edibles": "", "edible weed": "", "edible tree": "",
+    "edible shrub": "", "native edible": "", "edible landscaping": "",
+}
+
+
 def ko(value):
     return VALUES.get(value, value)
 
