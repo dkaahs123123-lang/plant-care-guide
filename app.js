@@ -869,7 +869,14 @@ const COUNTRY_KO = {
   "Indonesia": "인도네시아", "Malaysia": "말레이시아", "Sweden": "스웨덴", "Norway": "노르웨이", "Finland": "핀란드", "Denmark": "덴마크",
   "Austria": "오스트리아", "Switzerland": "스위스", "Poland": "폴란드", "Ecuador": "에콰도르", "Peru": "페루", "Chile": "칠레",
 };
-const countryKo = c => COUNTRY_KO[c] || c;
+// 표에 없는 나라는 GBIF의 나라 코드(TW 등)를 브라우저에 내장된 한국어 나라 이름으로 바꾼다.
+let REGION_KO = null;
+try { REGION_KO = new Intl.DisplayNames(["ko"], { type: "region" }); } catch (e) { /* 오래된 브라우저 */ }
+const countryKo = (c, code) => {
+  if (COUNTRY_KO[c]) return COUNTRY_KO[c];
+  try { const ko = code && REGION_KO?.of(code); if (ko && ko !== code) return ko; } catch (e) { /* 모르는 코드 */ }
+  return c;
+};
 
 const OPEN_LICENSE = /publicdomain|creativecommons\.org\/licenses\/by(-nc)?\/|^CC0|^CC_BY|^CC BY/i;
 function licenseLabel(l) {
@@ -915,7 +922,7 @@ async function loadGbif(name, id) {
       for (const m of o.media || []) {
         const lic = m.license || o.license || "";
         if (m.type !== "StillImage" || !m.identifier || !OPEN_LICENSE.test(lic)) continue;
-        pics.push({ url: m.identifier, lic, who: m.rightsHolder || m.creator || o.recordedBy || "", occ: o.key, where: o.country || "", specimen: isSpecimen(o) });
+        pics.push({ url: m.identifier, lic, who: m.rightsHolder || m.creator || o.recordedBy || "", occ: o.key, where: o.country || "", code: o.countryCode || "", specimen: isSpecimen(o) });
         break;
       }
       if (pics.length >= 6) break;
@@ -924,7 +931,7 @@ async function loadGbif(name, id) {
     photos.innerHTML = pics.length ? pics.map(p => `
       <figure class="photo">
         <a href="https://www.gbif.org/occurrence/${encodeURIComponent(p.occ)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="${esc(CI[id]?.name || name)} 관찰 사진" loading="lazy" referrerpolicy="no-referrer"></a>
-        <figcaption>${p.specimen ? `<b>말린 표본</b> · ` : ""}${p.where ? `<b>${esc(countryKo(p.where))}</b>에서 ${p.specimen ? "채집" : "촬영"} · ` : ""}${esc(p.who)} · ${esc(licenseLabel(p.lic))}</figcaption>
+        <figcaption>${p.specimen ? `<b>말린 표본</b> · ` : ""}${p.where ? `<b>${esc(countryKo(p.where, p.code))}</b>에서 ${p.specimen ? "채집" : "촬영"} · ` : ""}${esc(p.who)} · ${esc(licenseLabel(p.lic))}</figcaption>
       </figure>`).join("")
       : `<p class="small muted">이 이름으로 기록된, 자유롭게 쓸 수 있는 관찰 사진이 아직 없습니다.</p>`;
     photos.insertAdjacentHTML("afterend", pics.length ? `<p class="src">사진은 여러 나라 사람들이 GBIF에 올린 관찰 기록입니다. 찍은 나라의 기후에 따라 모습이 다를 수 있고, 식물을 잘못 알아본 사진이 섞여 있을 수 있습니다. 사진을 누르면 원본 기록으로 갑니다.</p>` : "");
