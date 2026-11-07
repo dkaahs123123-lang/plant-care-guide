@@ -51,11 +51,36 @@ header.top {
 }
 header.top .wrap { display: flex; gap: 16px; align-items: center; padding-block: 12px; flex-wrap: wrap; }
 .brand { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--ink); text-decoration: none; flex: none; }
-.searchbar { flex: 1 1 260px; min-width: 0; }
+.searchbar { flex: 1 1 260px; min-width: 0; position: relative; }
 .searchbar input {
-  width: 100%; font: inherit; font-size: 16px; padding: 10px 14px; border-radius: 10px;
+  width: 100%; font: inherit; font-size: 16px; padding: 10px 48px 10px 14px; border-radius: 10px;
   border: 1px solid var(--line); background: var(--panel); color: var(--ink);
 }
+/* 화면 키보드 (keyboard.js) */
+.kbd-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center;
+  width: 36px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2); cursor: pointer;
+}
+.kbd-toggle:hover, .kbd-toggle[aria-expanded="true"] { background: var(--leaf-soft); color: var(--leaf); }
+.kbd {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: min(560px, calc(100vw - 32px));
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .14); display: grid; gap: 6px; user-select: none;
+}
+.kbd[hidden] { display: none; }
+.kbd-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding: 0 2px; }
+.kbd-row { display: flex; gap: 5px; justify-content: center; }
+.kbd-key {
+  flex: 1 1 0; min-width: 0; height: 42px; font: inherit; font-size: 19px; font-weight: 600; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line); border-radius: 7px; cursor: pointer; padding: 0;
+}
+.kbd-key:hover { border-color: var(--leaf); }
+.kbd-key:active { background: var(--leaf-soft); }
+.kbd-key.wide { flex: 1.6 1 0; font-size: 14px; font-weight: 500; }
+.kbd-key.space { flex: 4 1 0; font-size: 14px; font-weight: 500; }
+.kbd-key.on { background: var(--leaf-soft); border-color: var(--leaf); color: var(--leaf); }
+.kbd-key.go { background: var(--leaf); border-color: var(--leaf); color: var(--panel); font-weight: 600; }
+.kbd-head .kbd-close { flex: none; width: 32px; height: 28px; border: 0; background: transparent; color: var(--ink-2); }
 
 main { padding-block: 24px 48px; display: grid; gap: 24px; }
 .muted { color: var(--ink-2); }
@@ -208,6 +233,14 @@ mark { background: var(--amber-soft); color: var(--ink); padding: 0 2px; border-
 dl.caution { background: var(--amber-soft); padding: 8px 12px; border-radius: 8px; }
 .list-sub { margin: 18px 0 6px; color: var(--ink-2); }
 .lines { white-space: pre-line; line-height: 1.7; }
+.photo-head { font-size: 14px; margin: 14px 0 6px; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(120px, calc(50% - 4px)), 1fr)); gap: 8px; }
+.photo-grid figure { margin: 0; }
+.photo-grid img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); }
+.photo-grid figcaption { font-size: 12px; color: var(--ink-2); margin-top: 3px; line-height: 1.4; }
+.more-photos { margin-top: 8px; }
+.more-photos > summary { cursor: pointer; font-size: 13px; color: var(--leaf); padding: 6px 0; }
+.more-photos[open] > summary { margin-bottom: 6px; }
 .pests { display: grid; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 details.pest { border-top: 1px solid var(--line); }
 details.pest:first-child { border-top: 0; }

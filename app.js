@@ -604,12 +604,30 @@ async function renderTaxon(genus, id) {
 const DISEASE_FIELDS = [["symptoms", "증상"], ["condition", "잘 생기는 조건"], ["prevention", "예방과 방제"], ["chemical", "약제 방제"], ["biology", "천적·미생물 방제"], ["pathogen", "병원체"]];
 const INSECT_FIELDS = [["damage", "피해"], ["form", "생김새"], ["ecology", "생활사"], ["prevention", "방제 방법"], ["chemical", "약제 방제"], ["biology", "천적·미생물 방제"], ["distrib", "분포"]];
 
+// 병해충 사진: 증상·피해, 병원체, 해충, 천적 묶음별로 보여 준다. 누르면 큰 사진이 새 창에서 열린다.
+// NCPMS 사진은 원본 크기(한 장에 수백 KB)라 묶음마다 4장만 먼저 보여 주고, 나머지는 '더 보기'를 눌렀을 때 불러온다.
+// 접힌 칸 안의 사진은 펼칠 때 불러온다 (loading="lazy")
+const PHOTO_FIRST = 4;
+function pestPhotos(p) {
+  const groups = p.photos || (p.img ? [["사진", [[p.img, ""]], 1]] : []);
+  if (!groups.length) return "";
+  const fig = title => ([url, cap]) => `
+      <figure><a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(cap || `${p.name} ${title}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>
+        ${cap && cap !== p.name ? `<figcaption>${esc(cap)}</figcaption>` : ""}</figure>`;
+  return groups.map(([title, photos, total]) => `
+    <h4 class="photo-head">${esc(title)} <span class="muted small">${total > photos.length ? `${photos.length}장 (전체 ${total}장 중)` : `${photos.length}장`}</span></h4>
+    <div class="photo-grid">${photos.slice(0, PHOTO_FIRST).map(fig(title)).join("")}</div>
+    ${photos.length > PHOTO_FIRST ? `<details class="more-photos"><summary>사진 ${photos.length - PHOTO_FIRST}장 더 보기</summary>
+      <div class="photo-grid">${photos.slice(PHOTO_FIRST).map(fig(title)).join("")}</div></details>` : ""}`).join("")
+    + `<p class="small muted">사진: 농촌진흥청 NCPMS · 원본 크기 사진이라 휴대폰 데이터가 많이 들 수 있어요</p>`;
+}
+
 function pestItem(p, fields, sub) {
   return `<details class="pest">
     <summary><b>${esc(p.name)}</b>${sub ? ` <span class="muted small">${sub}</span>` : ""}</summary>
     <div class="pest-body">
-      ${p.img ? `<img src="${esc(p.img)}" alt="${esc(p.name)}" loading="lazy" referrerpolicy="no-referrer">` : ""}
       <dl>${fields.filter(([k]) => p[k]).map(([k, label]) => `<dt>${label}</dt><dd>${esc(p[k])}</dd>`).join("")}</dl>
+      ${pestPhotos(p)}
       ${p.prevention || p.chemical || p.biology ? "" : `<p class="small muted">이 항목에는 NCPMS에 방제 방법이 등록되어 있지 않습니다.</p>`}
     </div>
   </details>`;
