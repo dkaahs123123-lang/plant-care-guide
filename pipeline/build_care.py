@@ -329,6 +329,104 @@ def new_target():
             "ns": {"garden": [], "dry": [], "herb": [], "fild": []}}
 
 
+def pathogen_keys(text):
+    """병원체 칸에서 사진을 맞춰 볼 이름만 뽑는다. 바이러스는 이름 전체, 균은 '속 종'만 쓰고 'sp.'처럼 종이 없는 이름은 뺀다."""
+    keys = []
+    for part in html.unescape(text or "").split(";"):
+        name = re.sub(r"\s*\([A-Z]{2,6}\)\s*$", "", re.sub(r"\s+", " ", part)).strip()
+        if re.search(r"virus|viroid|phytoplasma", name, re.I):
+            keys.append(name.lower())
+        else:
+            toks = name.split()
+            if len(toks) >= 2 and toks[0][:1].isupper() and toks[1][:1].islower() and toks[1] not in ("sp.", "spp."):
+                keys.append(f"{toks[0]} {toks[1]}".lower())
+    return list(dict.fromkeys(keys))
+
+
+def commons_credit(c):
+    """'작성자 · 라이선스'. 위키미디어가 자동으로 붙인 영어 문장('No machine-readable author provided. Fk assumed …')은 이름만 남긴다."""
+    artist = c["artist"]
+    m = re.match(r"No machine-readable author provided\.\s*(\S+) assumed", artist)
+    if m:
+        artist = m.group(1)
+    elif artist.lower().startswith(("unknown", "no machine-readable")):
+        artist = "작성자 표시 없음"
+    lic = "퍼블릭 도메인" if c["license"].lower().startswith(("public domain", "pd")) else c["license"]
+    return f"{artist} · {lic}"
+
+
+def fill_ncpms_photos(by_crop, family_of, commons):
+    """NCPMS에 사진이 없는 병은 같은 병원체를 가진 다른 작물의 사진으로 채운다. 어느 작물 자료인지 묶음 이름에 적는다.
+    병원체 이름이 비어 있으면, 같은 과(科) 작물들의 같은 이름 병이 모두 같은 병원체일 때만 그 병원체로 본다 (예: 배추 노균병 <- 무·갓 노균병).
+    돌려주는 값: 사진을 아직 못 채운 병의 병원체 이름 목록 (위키미디어 공용에서 찾을 때 쓴다)"""
+    dis = [(crop, p) for crop, v in by_crop.items() for p in v["diseases"]]
+    for crop, p in dis:
+        p["_keys"] = pathogen_keys(p["pathogen"])
+    named = defaultdict(list)
+    for crop, p in dis:
+        if p["_keys"]:
+            named[(p["name"], family_of(crop))].append(tuple(p["_keys"]))
+    for crop, p in dis:
+        cand = named.get((p["name"], family_of(crop))) if not p["_keys"] and not p["photos"] and family_of(crop) else None
+        # 병원체가 속까지만 적혀 있으면('Stemphylium sp.') 그 속과 같은 병원체일 때만 쓴다. 비어 있으면 그대로 쓴다
+        genera = {w.lower() for w in re.findall(r"([A-Z][a-z]+)\s+spp?\.", html.unescape(p["pathogen"] or ""))}
+        if cand and genera:
+            cand = [c for c in cand if c[0].split()[0] in genera]
+        if p["pathogen"].strip() and not genera:
+            cand = None
+        if cand and len(set(cand)) == 1:
+            p["_keys"] = list(cand[0])
+            p["pathogen_note"] = f"이 작물 자료에 병원체가 적혀 있지 않아, 같은 과 작물의 같은 병에 적힌 {cand[0][0][:1].upper() + cand[0][0][1:]}로 찾았어요"
+    # 사진을 빌려 줄 수 있는 병: 같은 과(科) 작물의 것을 먼저 쓴다
+    symptom, micro, same_name = defaultdict(list), defaultdict(list), defaultdict(list)
+    for crop, p in dis:
+        for title, photos, total in p["photos"]:
+            for k in p["_keys"]:
+                if title == "증상 사진":
+                    symptom[(p["name"], k)].append((crop, photos, total))
+                if title == "병원체 사진":
+                    micro[k].append((crop, photos, total))
+            if title == "증상 사진" and family_of(crop):
+                same_name[(p["name"], family_of(crop))].append((crop, photos, total, set(p["_keys"])))
+    pick = lambda donors, crop: next((d for d in donors if family_of(d[0]) == family_of(crop)), donors[0]) if donors else None
+    wanted, filled = set(), 0
+    for crop, p in dis:
+        if p["photos"]:
+            continue
+        groups = []
+        hit = next((pick(symptom[(p["name"], k)], crop) for k in p["_keys"] if symptom.get((p["name"], k))), None)
+        if hit:
+            groups.append([f"다른 작물({hit[0]})의 같은 병 사진", hit[1], hit[2]])
+        else:
+            # 같은 병원체 사진이 없으면 같은 과 작물의 같은 이름 병 사진을 쓴다 (예: 배추 검은무늬병 <- 갓 검은무늬병).
+            # 상대 작물에 적힌 병원체가 이 병과 다르면 쓰지 않는다
+            genera = {w.lower() for w in re.findall(r"([A-Z][a-z]+)\s+spp?\.", html.unescape(p["pathogen"] or ""))}
+            ok = lambda d: (not d[3] or (d[3] & set(p["_keys"]) if p["_keys"] else
+                                         not genera or any(k.split()[0] in genera for k in d[3])))
+            hit = pick([d for d in same_name.get((p["name"], family_of(crop)), []) if d[0] != crop and ok(d)], crop)
+            if hit:
+                groups.append([f"같은 과 작물({hit[0]})의 같은 이름 병 사진", hit[1], hit[2]])
+        hit = next((pick(micro[k], crop) for k in p["_keys"] if micro.get(k)), None)
+        if hit:
+            groups.append([f"병원체 사진 ({hit[0]} 자료)", hit[1], hit[2]])
+        # 그래도 증상 사진이 없으면 위키미디어 공용에서 병원체 학명으로 찾은 참고 사진을 붙인다 (사진마다 작성자·라이선스 표시)
+        if not any(g[0].startswith(("다른 작물", "같은 과")) for g in groups):
+            found = next(((k, commons[k]) for k in p["_keys"] if commons.get(k)), None)
+            if found:
+                photos = [[c["thumb"].split("?utm_")[0], "", c["page"], commons_credit(c)] for c in found[1]]
+                groups.append([f"참고 사진 (위키미디어 공용, {found[0][:1].upper() + found[0][1:]})", photos, len(photos)])
+        p["photos"] = groups
+        filled += bool(groups)
+        if not groups:
+            p.pop("pathogen_note", None)
+        if not any(g[0].startswith(("다른 작물", "같은 과")) for g in groups):
+            wanted.update(p["_keys"][:1])
+    for crop, p in dis:
+        p.pop("_keys", None)
+    print(f"병해충 사진: 다른 작물의 같은 병원체 사진으로 {filled}개 채움")
+    return sorted(wanted)
+
+
 def add_ncpms(data_dir, resolve, targets, meta, problems):
     raw = data_dir / "raw" / "ncpms"
     if not (raw / "fetched.json").exists():
@@ -351,6 +449,18 @@ def add_ncpms(data_dir, resolve, targets, meta, problems):
             by_crop[s["cropName"]]["insects"].append(ncpms_insect(json.loads(f.read_text(encoding="utf-8")), s["cropName"]))
 
     mapping = {r[0]: (r[1], r[2]) for r in read_tsv(data_dir / "crop_map.tsv")}
+
+    def family_of(crop):
+        sci = mapping.get(crop, ("-", ""))[0]
+        hit = resolve(sci) if sci != "-" else None
+        row = resolve.con.execute("SELECT family FROM taxa WHERE name = ? LIMIT 1", (hit[1],)).fetchone() if hit else None
+        return row[0] if row else ""
+    # 위키미디어 공용 참고 사진 (pipeline/fetch_commons.py 로 받음). commons_skip.tsv 에 적은 사진은 뺀다
+    cpath = data_dir / "raw" / "commons" / "results.json"
+    skip = {r[0] for r in read_tsv(data_dir / "commons_skip.tsv")} if (data_dir / "commons_skip.tsv").exists() else set()
+    commons = {k: [c for c in v if c["title"] not in skip] for k, v in json.loads(cpath.read_text(encoding="utf-8")).items()} if cpath.exists() else {}
+    wanted = fill_ncpms_photos(by_crop, family_of, commons)
+    (data_dir / "commons_wanted.json").write_text(json.dumps(wanted, ensure_ascii=False, indent=0), encoding="utf-8")
     linked = 0
     for crop in sorted(by_crop):
         if crop not in mapping:

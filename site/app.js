@@ -610,16 +610,21 @@ const INSECT_FIELDS = [["damage", "피해"], ["form", "생김새"], ["ecology", 
 const PHOTO_FIRST = 4;
 function pestPhotos(p) {
   const groups = p.photos || (p.img ? [["사진", [[p.img, ""]], 1]] : []);
-  if (!groups.length) return "";
-  const fig = title => ([url, cap]) => `
-      <figure><a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(cap || `${p.name} ${title}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>
-        ${cap && cap !== p.name ? `<figcaption>${esc(cap)}</figcaption>` : ""}</figure>`;
+  if (!groups.length) return `<p class="small muted">농촌진흥청 NCPMS 자료에 이 ${p.damage !== undefined ? "해충" : "병"}의 사진이 아직 없어요.</p>`;
+  // 사진 하나: [사진 주소, 설명] 또는 위키미디어 공용 사진이면 [사진 주소, 설명, 원본 쪽 주소, 작성자·라이선스]
+  const fig = title => ([url, cap, page, credit]) => `
+      <figure><a href="${esc(page || url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(cap || `${p.name} ${title}`)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>
+        ${cap && cap !== p.name ? `<figcaption>${esc(cap)}</figcaption>` : ""}${credit ? `<figcaption>${esc(credit)}</figcaption>` : ""}</figure>`;
+  const note = title => title.startsWith("참고 사진")
+    ? `<p class="small genus-note">이 병의 공식 사진이 없어, 병원체 학명으로 위키미디어 공용에서 찾은 참고 사진이에요. 공식 자료가 아니고 다른 작물의 증상일 수 있어요. 사진을 누르면 원본과 이용 허락(라이선스)을 볼 수 있어요.</p>`
+    : /^(다른 작물|같은 과|병원체 사진 \()/.test(title) ? `<p class="small muted">이 작물의 NCPMS 자료에는 사진이 없어 다른 작물 자료의 사진을 보여 드려요.${p.pathogen_note ? ` (${esc(p.pathogen_note)})` : ""}</p>` : "";
   return groups.map(([title, photos, total]) => `
     <h4 class="photo-head">${esc(title)} <span class="muted small">${total > photos.length ? `${photos.length}장 (전체 ${total}장 중)` : `${photos.length}장`}</span></h4>
+    ${note(title)}
     <div class="photo-grid">${photos.slice(0, PHOTO_FIRST).map(fig(title)).join("")}</div>
     ${photos.length > PHOTO_FIRST ? `<details class="more-photos"><summary>사진 ${photos.length - PHOTO_FIRST}장 더 보기</summary>
       <div class="photo-grid">${photos.slice(PHOTO_FIRST).map(fig(title)).join("")}</div></details>` : ""}`).join("")
-    + `<p class="small muted">사진: 농촌진흥청 NCPMS · 원본 크기 사진이라 휴대폰 데이터가 많이 들 수 있어요</p>`;
+    + `<p class="small muted">사진: 농촌진흥청 NCPMS${groups.some(([t]) => t.startsWith("참고 사진")) ? " · 위키미디어 공용 (사진마다 작성자·라이선스 표시)" : ""} · 원본 크기 사진이라 휴대폰 데이터가 많이 들 수 있어요</p>`;
 }
 
 function pestItem(p, fields, sub) {

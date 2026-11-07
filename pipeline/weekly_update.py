@@ -47,6 +47,7 @@ def main():
         (PY + ["pipeline/fetch_nongsaro_cases.py", "data/raw/cases", "--refresh"], "현장 진단 사례(새 글)"),
         (PY + ["pipeline/fetch_ncsu.py", "data/plants.db", "data/raw/ncsu", f"--part={part}/4"], f"NC State ({part + 1}/4 묶음)"),
         (PY + ["pipeline/fetch_nongsaro.py", "data/raw/nongsaro"], "농사로(실내정원·건조 실내식물·민간약초·텃밭·주간농사정보)"),
+        (PY + ["pipeline/fetch_commons.py", "data/commons_wanted.json", "data/raw/commons"], "병해충 참고 사진(위키미디어 공용)"),
         (PY + ["pipeline/fetch_foodraw.py", "data/raw/foodraw"], "식품 원료(식약처)"),
         (PY + ["pipeline/fetch_foodnutri.py", "data/raw/foodnutri"], "영양성분(국가표준식품성분)"),
     ]
