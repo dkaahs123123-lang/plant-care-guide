@@ -71,7 +71,8 @@ KFS_URL = "https://www.data.go.kr/data/15092915/fileData.do"
 NCPMS_CATS = {"VC": "veg", "FT": "fruit", "FL": "flower", "FC": "grain", "IC": "herbal", "WP": "tree"}
 # 한국어 대표 이름을 고를 때의 순서: 표준 국명 > 정원식물 > 실내식물 > 작물명
 # kfs_loose: 변종·품종이 종으로 합쳐져 들어온 국명(예: 보은대추나무 -> 대추나무 종). 대표 이름으로는 마지막에만 쓴다
-NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose", "food", "food_syn")
+# 농사로(ns) 이름은 식약처 이름 뒤에 둔다. 농사로 실내식물 이름에는 '금목서', '황금세덤'처럼 품종·유통명이 종 이름으로 적힌 것이 있다
+NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose", "food", "food_syn", "ns")
 ALT_FAMILIES = {"Compositae": "Asteraceae", "Leguminosae": "Fabaceae", "Cruciferae": "Brassicaceae", "Labiatae": "Lamiaceae",
                 "Umbelliferae": "Apiaceae", "Gramineae": "Poaceae", "Palmae": "Arecaceae", "Guttiferae": "Clusiaceae"}
 RANK_WORDS = ("var.", "subsp.", "f.")
@@ -312,7 +313,8 @@ def air_item(xml):
 
 def new_target():
     return {"crops": [], "ko": [], "names": {s: [] for s in NAME_PRIORITY}, "cats": set(), "kfs": [], "web": None, "smart": None, "cases": [],
-            "diseases": [], "insects": [], "grow": [], "air": [], "notes": [], "air_notes": [], "food": [], "nutri": []}
+            "diseases": [], "insects": [], "grow": [], "air": [], "notes": [], "air_notes": [], "food": [], "nutri": [], "food_ko": [],
+            "ns": {"garden": [], "dry": [], "herb": [], "fild": []}}
 
 
 def add_ncpms(data_dir, resolve, targets, meta, problems):
@@ -758,10 +760,16 @@ def add_foodraw(data_dir, resolve, targets, problems):
         if it.get("ANML_INFO") != "식물성":
             continue
         keys = {}  # 식물 키 -> 식약처 학명이 그 식물과 같은 종 이름인지 (변종 차이는 같다고 보고, 옛 학명으로 이어진 것은 False)
+        # 학명 칸에 이름이 여럿이면, 처음 찾아지는 이름과 속(屬)이 같은 이름만 쓴다. 다른 속의 이름은 다른 식물이 잘못
+        # 적힌 경우가 있다 (예: 주목 'Taxus cuspidata / Hornemannia bicolor', 가시비름 'Amaranthus spinosus / Rubus schizostylus')
+        ref = None
         for name in foodraw_names(it.get("SCNNM_NM")):
             hit, used = resolve.from_full_name(name)
+            if not hit:
+                continue
+            ref = ref or name.split()[0]
             # 도감에 이미 있는 식물에만 붙인다. 식품 원료 이름만으로 새 식물을 만들지 않는다
-            if hit and hit[0] in targets:
+            if name.split()[0] == ref and hit[0] in targets:
                 keys[hit[0]] = keys.get(hit[0], False) or used.split()[:2] == f"{hit[1]} {hit[2]}".split()[:2]
         dash = lambda v: "" if clean(v) in ("", "-") else clean(v)
         for key, exact in keys.items():
@@ -770,6 +778,9 @@ def add_foodraw(data_dir, resolve, targets, problems):
             # 옛 학명으로만 이어진 원료 이름은 다른 이름이 하나도 없을 때만 쓴다 (food_syn, 맨 끝)
             if len(keys) == 1 and re.search(r"[가-힣]", it.get("INGD_NM") or ""):
                 targets[key]["names"]["food" if exact else "food_syn"].append(clean(it.get("INGD_NM")))
+            # 같은 종의 한국어 원료 이름은 검색에도 쓴다 (예: 환삼덩굴을 '한삼덩굴'로 찾기)
+            if len(keys) == 1 and re.search(r"[가-힣]", it.get("INGD_NM") or ""):
+                targets[key]["food_ko"].append(clean(it.get("INGD_NM")))
             targets[key]["food"].append({
                 "name": clean(it.get("INGD_NM")), "other": dash(it.get("NKNM_NM")), "sci": clean(it.get("SCNNM_NM")),
                 "edible": clean(it.get("EDIBLE_INFO")), "parts": dash(it.get("EDIBLE_USE_CONT")), "cond": dash(it.get("CHRTR_INFO_CONT")),
@@ -808,24 +819,7 @@ def add_foodnutri(data_dir, targets, food_names, problems):
         return None
     fetched = json.loads((raw / "fetched.json").read_text(encoding="utf-8"))["fetched"]
     details = json.loads((raw / "details.json").read_text(encoding="utf-8"))
-    # 이름이 여러 식물에 맞으면 더 믿을 만한 이름부터 본다: 작물 이름 > 대표 이름 > 다른 한국어 이름 > 식약처 원료 이름 > 식약처 다른 이름
-    tiers = [defaultdict(set) for _ in range(3)]
-    own = [s for s in NAME_PRIORITY if not s.startswith("food")]  # 식약처 이름은 아래 두 단계에서 따로 본다
-    for key, t in targets.items():
-        for n in t["crops"]:
-            tiers[0][n].add(key)
-        main = t.get("override_name") or next((n for s in own for n in t["names"][s]), "")
-        if main:
-            tiers[1][main].add(key)
-        for n in t["ko"] + [n for s in own for n in t["names"][s]]:
-            tiers[2][n].add(key)
-    tiers += [food_names["main"], food_names["other"]]
-
-    def find(name):
-        for tier in tiers:
-            if tier.get(name):
-                return tier[name]
-        return set()
+    find = name_finder(targets, food_names)
     linked = 0
     for f in json.loads((raw / "list.json").read_text(encoding="utf-8")):
         if f["food_Code"] not in details:
@@ -852,6 +846,198 @@ def add_foodnutri(data_dir, targets, food_names, problems):
             linked += 1
     print(f"영양성분(국가표준식품성분): 생것 식품 {linked}개를 식물에 연결")
     return fetched
+
+
+# 농사로 Open API (pipeline/fetch_nongsaro.py 로 받은 자료). 공공누리 유형은 농사로 공공데이터 목록에 적힌 대로다.
+NS_URL = "https://www.nongsaro.go.kr/portal/ps/psn/psnj/openApiLst.ps?menuId=PS65428"
+NS_SOURCES = {
+    "garden": ("농촌진흥청 농사로 실내정원용 식물", "공공누리 제3유형 (출처표시, 변경금지)"),
+    "dry": ("농촌진흥청 농사로 건조에 강한 실내식물", "공공누리 제4유형 (출처표시, 상업적 이용금지, 변경금지)"),
+    "herb": ("농촌진흥청 농사로 약초정보(민간약초)", "공공누리 제3유형 (출처표시, 변경금지)"),
+    "fild": ("농촌진흥청 농사로 텃밭가꾸기 정보", "공공누리 제4유형 (출처표시, 상업적 이용금지, 변경금지)"),
+    "week": ("농촌진흥청 농사로 주간농사정보", "공공누리 제1유형 (출처표시)"),
+}
+# 실내정원용 식물 '독성' 칸에서 독이 없다는 뜻인 값. 정보가 없는 값(N/A, unknown)과 독성과 상관없는 값(해독작용)은 화면에서도 뺀다
+NS_NOT_TOXIC = {"없음", "n/a", "unknown", "알려져 있지 않음", "해독작용"}
+NS_HIDE_TOXIC = {"n/a", "unknown", "해독작용"}
+# 실내정원용 식물: (원문 항목, 화면 이름). 값은 원문 그대로 싣는다
+NS_GARDEN_FIELDS = [
+    ("distbNm", "유통명"), ("orgplceInfo", "원산지"), ("clCodeNm", "분류"), ("grwhstleCodeNm", "자라는 모양"),
+    ("growthHgInfo", "키 (cm)"), ("growthAraInfo", "폭 (cm)"), ("lighttdemanddoCodeNm", "빛"), ("postngplaceCodeNm", "두면 좋은 곳"),
+    ("grwhTpCodeNm", "잘 자라는 온도"), ("winterLwetTpCodeNm", "겨울 최저 온도"), ("hdCodeNm", "습도"),
+    ("watercycleSprngCodeNm", "물주기 (봄)"), ("watercycleSummerCodeNm", "물주기 (여름)"), ("watercycleAutumnCodeNm", "물주기 (가을)"),
+    ("watercycleWinterCodeNm", "물주기 (겨울)"), ("frtlzrInfo", "비료"), ("soilInfo", "흙"), ("managelevelCodeNm", "관리 수준"),
+    ("managedemanddoCodeNm", "관리 요구도"), ("grwtveCodeNm", "자라는 속도"), ("prpgtmthCodeNm", "번식 방법"), ("prpgtEraInfo", "번식 시기"),
+    ("dlthtsCodeNm", "잘 생기는 병해충"), ("dlthtsManageInfo", "병해충 관리"), ("speclmanageInfo", "특별 관리"), ("etcEraInfo", "그 밖에"),
+    ("fncltyInfo", "특징"), ("flclrCodeNm", "꽃 색"), ("ignSeasonCodeNm", "꽃 피는 때"), ("lefcolrCodeNm", "잎 색"),
+    ("lefmrkCodeNm", "잎 무늬"), ("lefStleInfo", "잎 모양"), ("smellCodeNm", "향기"), ("adviseInfo", "용도"), ("toxctyInfo", "독성"),
+]
+NS_DRY_FIELDS = [
+    ("distbNm", "유통명"), ("clNm", "분류"), ("orgplce", "원산지"), ("chartrInfo", "생김새"), ("stleSeNm", "모양"), ("rdxStleNm", "뿌리"),
+    ("flwrInfo", "꽃"), ("lfclChngeInfo", "잎 색 변화"), ("grwtInfo", "자라는 때"), ("grwtseVeNm", "자라는 속도"), ("lighttInfo", "빛"),
+    ("batchPlaceInfo", "두면 좋은 곳"), ("waterCycleInfo", "물주기"), ("grwhTpInfo", "잘 자라는 온도"), ("pswntrTpInfo", "겨울 최저 온도"),
+    ("frtlzrInfo", "비료"), ("prpgtInfo", "번식"), ("dlthtsInfo", "병해충"), ("hgtmMhmrInfo", "여름철 주의"), ("tipInfo", "관리 요령"),
+    ("manageLevelNm", "관리 수준"), ("manageDemandNm", "관리 요구도"), ("clCodeDc", "속 설명"),
+]
+
+
+def ns_text(value):
+    """원문 값의 <br />, <i> 같은 표시만 줄바꿈·글자로 바꾼다. 문장은 고치지 않고, 담당자·연락처가 든 줄만 뺀다."""
+    value = re.sub(r"<br\s*/?>", "\n", value or "", flags=re.I)
+    value = html.unescape(re.sub(r"<[^>]+>", "", value))
+    lines = (l.strip() for l in value.replace("\r", "").split("\n"))
+    return "\n".join(l for l in lines if l and not is_private(l) and "담당자" not in l)
+
+
+def ns_sci(value):
+    """'<i>Peperomia graveolens</i>, 후추과', 'Potentilla kleiniana (장미과)', 'Ailanthus altissima for. altissima' -> 학명"""
+    m = re.search(r"<i>(.*?)</i>", value or "")
+    sci = m.group(1) if m else re.split(r"[(,]", value or "")[0]
+    # 품종 이름('Variegata'), spp., hybrid 를 떼면 속 이름만 남는 것은 속 전체에 붙인다
+    sci = re.sub(r"['‘’].*?['‘’]", "", sci)
+    sci = re.sub(r"\b(?:spp|ssp|sp)\.\s*$|\bhybrids?\b|\bhybridum\b", "", sci.strip()).replace(" X ", " × ")
+    return re.sub(r"\bfor\.", "f.", re.sub(r"\s+", " ", sci)).strip()
+
+
+def add_nongsaro(data_dir, resolve, targets, meta, problems):
+    raw = data_dir / "raw" / "nongsaro"
+    if not (raw / "fetched.json").exists():
+        return None
+    fetched = json.loads((raw / "fetched.json").read_text(encoding="utf-8"))["fetched"]
+    load = lambda name: json.loads((raw / name).read_text(encoding="utf-8")) if (raw / name).exists() else {}
+
+    def link(kind, sci, name, item):
+        hit, _ = resolve.from_full_name(sci) if sci else (None, "")
+        if not hit:
+            problems.append(f"[농사로 {NS_SOURCES[kind][0][10:]}] WFO에서 찾을 수 없는 학명: {name} -> {sci}")
+            return None
+        key, genus, rest, unit = hit
+        t = targets[key]
+        t["ns"][kind].append(item)
+        t["ko"].append(name)
+        # 품종 이름('마리안느', ‘탱고’)이나 속 전체에 붙은 이름은 검색에만 쓰고 대표 이름으로 쓰지 않는다
+        if unit != "genus" and not re.search(r"['‘’“”]", name + item.get("sci", "")):
+            t["names"]["ns"].append(name)
+        meta[key] = (genus, rest, unit)
+        return t
+
+    names = {x["cntntsNo"]: x.get("cntntsSj", "") for x in load("garden_list.json")}
+    counts = defaultdict(int)
+    for no, d in load("garden_detail.json").items():
+        name = clean(names.get(no, ""))
+        fields = [[label, ns_text(d.get(k))] for k, label in NS_GARDEN_FIELDS if ns_text(d.get(k))]
+        fields = [[k, v] for k, v in fields if not (k == "독성" and v.strip().lower() in NS_HIDE_TOXIC)]
+        item = {"no": no, "name": name, "sci": d.get("plntbneNm", ""), "fields": fields}
+        t = link("garden", ns_sci(d.get("plntbneNm", "")), name, item)
+        if t is not None:
+            t["cats"].add("indoor")
+            counts["garden"] += 1
+    for no, d in load("dryGarden_detail.json").items():
+        name = clean(d.get("cntntsSj"))
+        item = {"no": no, "name": name, "sci": ns_sci(d.get("scnm")), "img": d.get("mainImgUrl1", "").replace("http://", "https://", 1),
+                "fields": [[label, ns_text(d.get(k))] for k, label in NS_DRY_FIELDS if ns_text(d.get(k))]}
+        t = link("dry", ns_sci(d.get("scnm")), name, item)
+        if t is not None:
+            t["cats"].add("indoor")
+            counts["dry"] += 1
+    for no, d in load("prvateTherpy_detail.json").items():
+        name = clean(d.get("cntntsSj"))
+        item = {"no": no, "name": name, "sci": d.get("bneNm", ""), "herbal": ns_text(d.get("hbdcNm")), "part": ns_text(d.get("useeRegn")),
+                "form": ns_text(d.get("stle")), "folk": ns_text(d.get("prvateTherpy")), "img": d.get("imgUrl1", "").replace("http://", "https://", 1)}
+        if link("herb", ns_sci(d.get("bneNm")), name, item) is not None:
+            counts["herb"] += 1
+    print(f"농사로: 실내정원용 식물 {counts['garden']}종, 건조에 강한 실내식물 {counts['dry']}종, 민간약초 {counts['herb']}종 연결")
+    return fetched
+
+
+# 텃밭가꾸기 글 제목에서 작물 이름만 뽑는다. 작물 이름이 없는 글(캘린더, 농자재 등)은 붙이지 않는다
+FILD_TITLE = [r"^주요 열대 아열대 과수 소개 _(.+)$", r"^가정에서 (.+?) (?:기르기|키우기)$", r"^(.+?)[을를] 이용한 텃밭가꾸기$",
+              r"^(.+?) 텃밭가꾸기$", r"^(.+?) 종자 생산 기술$", r"^([가-힣]+)$"]
+# 글 제목의 작물 이름이 도감 이름과 다른 것
+# None 은 붙이지 않는다 (쪽파는 대파와 다른 식물)
+FILD_ALIAS = {"참다래": "참다래(키위,다래)", "양앵두": "체리", "잎들깨": "들깨", "적환무": "무", "엔디브": "앤디브", "스피아민트": "녹양박하",
+              "금감": "금귤", "온주밀감": "감귤", "한라봉": "감귤", "쪽파": None}
+
+
+def fild_title(title):
+    title = re.sub(r"\s+", " ", title).strip()
+    for pat in FILD_TITLE:
+        m = re.match(pat, title)
+        if m:
+            name = m.group(1).strip()
+            return FILD_ALIAS.get(name, name)
+    return None
+
+
+def name_finder(targets, food_names):
+    """한국어 이름으로 식물 키를 찾는다. 이름이 여러 식물에 맞으면 더 믿을 만한 이름부터 본다:
+    작물 이름 > 대표 이름 > 다른 한국어 이름 > 식약처 원료 이름 > 식약처 다른 이름"""
+    tiers = [defaultdict(set) for _ in range(3)]
+    own = [s for s in NAME_PRIORITY if not s.startswith("food")]
+    for key, t in targets.items():
+        for n in t["crops"]:
+            tiers[0][n].add(key)
+        main = t.get("override_name") or next((n for s in own for n in t["names"][s]), "")
+        if main:
+            tiers[1][main].add(key)
+        for n in t["ko"] + [n for s in own for n in t["names"][s]]:
+            tiers[2][n].add(key)
+    tiers += [food_names["main"], food_names["other"]]
+
+    def find(name):
+        for tier in tiers:
+            if tier.get(name):
+                return tier[name]
+        return set()
+    return find
+
+
+def ns_html_lines(cn):
+    parser = HtmlLines()
+    parser.feed(cn or "")
+    return parser.lines()
+
+
+def add_fild(data_dir, targets, food_names, problems):
+    raw = data_dir / "raw" / "nongsaro"
+    find = name_finder(targets, food_names)
+    linked = 0
+    for code in ("335001", "335002", "335003"):
+        path = raw / f"fildMnfct_{code}_list.json"
+        if not path.exists():
+            continue
+        for it in json.loads(path.read_text(encoding="utf-8")):
+            crop = fild_title(it.get("cntntsSj", ""))
+            if not crop:
+                continue
+            keys = find(crop)
+            if len(keys) != 1:
+                if keys:
+                    problems.append(f"[농사로 텃밭] 이름이 여러 식물에 맞아 연결하지 않음: {it['cntntsSj']}")
+                continue
+            lines = ns_html_lines(it.get("cn"))
+            # 첫 줄은 글 제목과 같아 뺀다
+            if lines and re.sub(r"\s", "", lines[0]) in re.sub(r"\s", "", it["cntntsSj"]):
+                lines = lines[1:]
+            # 담당자 이름·연락처가 든 줄은 싣지 않는다 (변경금지 자료라 문장은 고치지 않고 줄만 뺀다)
+            kept = [l for l in lines if not is_private(l) and not re.search(r"담당자|작성자", l)]
+            targets[next(iter(keys))]["ns"]["fild"].append({"no": it["cntntsNo"], "title": it["cntntsSj"].strip(), "lines": kept,
+                                                            "omitted": len(lines) - len(kept)})
+            linked += 1
+    print(f"농사로 텃밭가꾸기: 작물 글 {linked}개 연결")
+
+
+def write_week(data_dir, out_path):
+    path = data_dir / "raw" / "nongsaro" / "weekFarmInfo_list.json"
+    if not path.exists():
+        return
+    weeks = []
+    for w in json.loads(path.read_text(encoding="utf-8")):
+        files = list(zip(w.get("fileName", "").split("|"), w.get("downUrlList", "").split("|")))
+        pdf = next((u for n, u in files if n.lower().endswith(".pdf")), w.get("downUrl", ""))
+        weeks.append({"title": clean(w.get("subject")), "date": w.get("regDt", ""), "pdf": pdf})
+    source, license_ = NS_SOURCES["week"]
+    out_path.write_text(json.dumps({"source": source, "license": license_, "url": NS_URL, "weeks": weeks}, ensure_ascii=False), encoding="utf-8")
 
 
 def write_climate(data_dir, out_path):
@@ -980,6 +1166,24 @@ def use_info(t, dates):
         items = sorted(t["nutri"], key=lambda x: (x["name"].count(","), x["name"]))
         uses["nutri"] = {"items": items, "source": NUTRI_SOURCE, "url": NUTRI_URL, "license": NUTRI_LICENSE, "retrieved": dates["nutri"]}
         cats.add("use-food")
+    if t["ns"]["herb"]:
+        uses["herb"] = {"items": t["ns"]["herb"], "source": NS_SOURCES["herb"][0], "license": NS_SOURCES["herb"][1], "url": NS_URL,
+                        "retrieved": dates["ns"]}
+        cats.add("use-med")
+    # 실내정원용 식물의 '용도'와 '독성' 칸 (농촌진흥청)
+    ns_use = [(it["name"], dict(it["fields"])) for it in t["ns"]["garden"]]
+    advise = [[n, f["용도"]] for n, f in ns_use if f.get("용도")]
+    # 독성 칸은 값이 제각각이라("복용시 치명적 독성", "강함 (…)", 영어 문장 등) 독이 없다는 값만 골라 내고 나머지는 독이 있다고 본다
+    toxic = [[n, f["독성"], f["독성"].strip().lower() not in NS_NOT_TOXIC] for n, f in ns_use if f.get("독성")]
+    if advise or toxic:
+        uses["nsgarden"] = {"advise": advise, "toxic": toxic, "source": NS_SOURCES["garden"][0], "license": NS_SOURCES["garden"][1],
+                            "url": NS_URL, "retrieved": dates["ns"]}
+        words = " ".join(v for _, v in advise)
+        cats |= ({"use-med"} if "약용" in words else set()) | ({"use-food"} if "식용" in words else set())
+        if any(flag for _, _, flag in toxic):
+            cats.add("use-toxic")
+        if any("애완동물" in v for _, v, _ in toxic):
+            cats.add("use-pet")
     web = (t["web"] or {}).get("uses")
     if web:
         uses["web"] = {**web, "source": NCSU_SOURCE, "url": t["web"]["url"], "retrieved": dates["ncsu"]}
@@ -1006,9 +1210,11 @@ def main(data_dir, out_dir):
     kfs_date = add_kfs(data_dir, resolve, targets, meta, problems, families)
     ncsu_date = add_ncsu(data_dir, resolve, targets, meta, problems)
     smart_date = add_smartfarm(data_dir, resolve, targets, meta, problems)
+    ns_date = add_nongsaro(data_dir, resolve, targets, meta, problems)
     cases_date = add_cases(data_dir, targets, problems, resolve, meta)
     food_date, food_names = add_foodraw(data_dir, resolve, targets, problems)
     nutri_date = add_foodnutri(data_dir, targets, food_names, problems)
+    add_fild(data_dir, targets, food_names, problems)
     corrections = apply_corrections(data_dir, resolve, targets, problems)
     for key in [k for k, t in targets.items() if t.get("hidden")]:
         del targets[key]
@@ -1048,16 +1254,22 @@ def main(data_dir, out_dir):
         if t["cases"]:
             doc["cases"] = {"source": CASES_SOURCE, "url": CASES_URL, "license": CASES_LICENSE, "retrieved": cases_date,
                             "items": sorted(t["cases"], key=lambda c: c.get("date", ""), reverse=True)}
-        uses, use_cats = use_info(t, {"air": air_date, "garden": garden_date, "ncsu": ncsu_date, "food": food_date, "nutri": nutri_date})
+        for kind, items in t["ns"].items():
+            if items and kind != "herb":
+                doc.setdefault("ns", {})[kind] = {"source": NS_SOURCES[kind][0], "license": NS_SOURCES[kind][1], "url": NS_URL,
+                                                  "retrieved": ns_date, "items": items}
+        uses, use_cats = use_info(t, {"air": air_date, "garden": garden_date, "ncsu": ncsu_date, "food": food_date, "nutri": nutri_date,
+                                      "ns": ns_date})
         if uses:
             doc["uses"] = uses
             t["cats"] |= use_cats
         (out / f"{key.replace(':', '-')}.json").write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-        name = own_name(t) or next((n for n in t["names"]["food"] + t["names"]["food_syn"] if n not in taken), "")
+        name = t.get("override_name") or next((n for s in NAME_PRIORITY for n in t["names"][s]
+                                                  if not s.startswith("food") or n not in taken), "")
         index[key] = {
-            "g": genus, "r": rest, "name": name, "crops": t["crops"], "ko": list(dict.fromkeys(t["ko"])),
+            "g": genus, "r": rest, "name": name, "crops": t["crops"], "ko": list(dict.fromkeys(t["ko"] + t["food_ko"])),
             "cats": sorted(t["cats"]), "nd": len(t["diseases"]), "ni": len(t["insects"]),
-            "grow": bool(t["grow"] or t["air"]), "web": bool(t["web"]), "smart": bool(t["smart"]), "nc": len(t["cases"]),
+            "grow": bool(t["grow"] or t["air"] or t["ns"]["garden"] or t["ns"]["dry"] or t["ns"]["fild"]), "web": bool(t["web"]), "smart": bool(t["smart"]), "nc": len(t["cases"]),
         }
     (out / "index.json").write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
@@ -1076,6 +1288,7 @@ def main(data_dir, out_dir):
             symptoms.append([key, c["crop"], "현장 사례", c["title"], f"{c['title']} {body}", c["no"]])
     (out.parent / "symptoms.json").write_text(json.dumps(symptoms, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     write_climate(data_dir, out.parent / "climate.json")
+    write_week(data_dir, out.parent / "week.json")
     (out.parent / "corrections.json").write_text(json.dumps(corrections, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     # 국제식물명명규약이 같은 과로 인정하는 옛 이름(Compositae 등)은 현재 이름에도 같은 한국어 과명을 붙인다
     for old, new in ALT_FAMILIES.items():

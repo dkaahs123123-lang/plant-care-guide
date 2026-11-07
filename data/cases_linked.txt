@@ -42,7 +42,7 @@
 무	['무']	Raphanus sativus	4
 결구상추(양상추)	['상추']	Lactuca sativa	4
 단호박	['단호박']	Cucurbita maxima	4
-호박	['호박']	Cucurbita 	4
+호박	['애호박']	Cucurbita moschata	4
 잎들깨	['들깨']	Perilla frutescens	4
 공심채	['공심채']	Ipomoea aquatica	4
 쥬키니호박	['쥬키니호박']	Cucurbita pepo	3
@@ -63,7 +63,7 @@
 파	['파']	Allium fistulosum	2
 더덕	['더덕']	Codonopsis lanceolata	2
 박	['박']	Lagenaria siceraria	2
-연	['연']	Nelumbo nucifera	2
+연	['연꽃']	Nelumbo nucifera	2
 봄무	['무']	Raphanus sativus	2
 당근	['당근']	Daucus carota	2
 참마	['참마']	Dioscorea japonica	2
@@ -89,7 +89,7 @@
 미나리	['미나리']	Oenanthe javanica	1
 뽕나무	['처진뽕나무']	Morus alba	1
 머위	['머위']	Petasites japonicus	1
-뽕나무	[]	Maclura tricuspidata	1
+뽕나무	['꾸지뽕나무']	Maclura tricuspidata	1
 치자	['치자나무']	Gardenia jasminoides	1
 아스파라거스	['아스파라가스']	Asparagus 	1
 케일	['케일']	Brassica oleracea var. viridis	1

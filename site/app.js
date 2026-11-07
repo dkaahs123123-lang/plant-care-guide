@@ -8,7 +8,7 @@ const QUICK = ["몬스테라", "스킨답서스", "호야", "고추", "토마토
 
 // 둘러보기 분류. 채소·과일 등은 NCPMS 작물 분류 코드, 실내식물·정원식물·우리나라 식물은 각 자료 목록을 따른다.
 const CATS = {
-  indoor: ["실내식물", "집 안에서 키우는 관엽식물과 꽃입니다. 키우는 방법은 국립원예특작과학원 자료입니다."],
+  indoor: ["실내식물", "집 안에서 키우는 관엽식물, 꽃, 다육식물입니다. 키우는 방법은 농촌진흥청(국립원예특작과학원, 농사로) 자료입니다."],
   veg: ["채소", "텃밭과 베란다에서 키우는 채소입니다. 농촌진흥청 NCPMS의 채소 분류를 따랐습니다."],
   fruit: ["과일나무", "열매를 먹는 나무와 덩굴입니다. 농촌진흥청 NCPMS의 과수 분류를 따랐습니다."],
   flower: ["꽃·관상식물", "꽃과 잎을 보려고 키우는 식물입니다. 농촌진흥청 NCPMS의 화훼 분류를 따랐습니다."],
@@ -53,6 +53,8 @@ const REGION = {
   kfs: ["한국", "자생지", "꽃 피는 달 등은 우리나라 산과 들에서 자랄 때를 기준으로 합니다."],
   cases: ["한국", "농가 현장", "실제 농가에서 생긴 문제를 그 현장의 날씨·흙·재배 방법과 함께 진단한 기록이라, 같은 증상이라도 원인이 다를 수 있습니다."],
   smart: ["한국", "스마트팜(온실)", "농촌진흥청이 우리나라 스마트팜 우수 농가의 환경 설정을 바탕으로 정리한 값입니다."],
+  nsindoor: ["한국", "실내", "농촌진흥청 농사로가 우리나라 집 안 환경을 기준으로 정리한 자료입니다."],
+  fild: ["한국", "텃밭·가정", "농촌진흥청 농사로가 우리나라 텃밭과 가정에서 기르는 것을 기준으로 정리한 자료입니다."],
   web: ["미국 노스캐롤라이나", "야외",
     `노스캐롤라이나는 대부분 여름이 덥고 습하며 겨울이 온화한 기후(쾨펜 Cfa)이고, 미국 농무부 추위 구역으로 산지 5b부터 해안 9a까지입니다 (<a href="https://planthardiness.ars.usda.gov" target="_blank" rel="noopener">USDA 내한성 지도</a>). ` +
     `우리나라는 지역마다 겨울 추위가 크게 다르니 <a href="${KMA_CLIMATE}" target="_blank" rel="noopener">기상청 지역별 기후통계</a>에서 사는 곳의 겨울 최저기온과 비교해 보세요.`],
@@ -127,7 +129,7 @@ function badges(v) {
 function plantRow(key, v, note = "") {
   const sci = fullName(v.g, v.r);
   return `<a class="row" href="${careHref(key, v)}">
-    <span class="title">${v.name ? `<b class="ko">${esc(v.name)}</b> <i class="sci-s">${esc(sci)}</i>` : `<i>${esc(sci)}</i>`}${key.startsWith("g:") ? ` <span class="badge">속 전체</span>` : ""}</span>
+    <span class="title">${v.name ? `<b class="ko">${esc(v.name)}</b> <i class="sci-s">${esc(sci)}</i>` : `<i>${esc(sci)}</i>${v.ko.length ? ` <span class="muted small">· ${esc(v.ko.slice(0, 2).join(", "))}${v.ko.length > 2 ? " 등" : ""}</span>` : ""}`}${key.startsWith("g:") ? ` <span class="badge">속 전체</span>` : ""}</span>
     <span class="side">${badges(v)}</span>
     ${note ? `<span class="note">${note}</span>` : ""}
   </a>`;
@@ -205,6 +207,7 @@ async function renderHome() {
       </div>
       <p class="small muted">자료에 적힌 쓰임을 출처와 함께 옮겼습니다. 병을 고친다는 뜻이 아니니, 약이나 음식으로 쓰기 전에 전문가와 상담하세요.</p>
     </section>
+    <div id="week-card"></div>
     <a class="card feature" href="#/symptom">
       <h2>식물이 아파요</h2>
       <p>잎이 노래지거나 흰 가루가 생겼나요? 증상을 고르면 어떤 병이나 해충인지 찾아 드립니다.</p>
@@ -230,6 +233,15 @@ async function renderHome() {
         <div class="stat"><div class="n">${fmt(all.filter(v => v.nd || v.ni).length)}</div><div class="k">병해충 정보가 있는 식물</div></div>
       </div>
       <p class="small muted">학명과 분류: World Flora Online · 한국어 이름: 산림청, 한국수목원정원관리원, 농촌진흥청 · 키우는 방법: 국립원예특작과학원, 한국수목원정원관리원 · 병해충: 농촌진흥청 NCPMS · <a href="#/families">모든 과 보기</a></p>
+    </section>`;
+  const week = await optional(getJSON("data/week.json"));
+  const box = document.getElementById("week-card");
+  if (box && week?.weeks?.length) box.innerHTML = `
+    <section class="card">
+      <h2>이번 주 농사 정보</h2>
+      <p class="small muted">농촌진흥청이 매주 내는 작물 관리와 병해충 방제 요령입니다. 누르면 PDF 파일을 받습니다.</p>
+      <ul class="tips">${week.weeks.slice(0, 3).map(w => `<li><a href="${esc(w.pdf)}" target="_blank" rel="noopener">${esc(w.title)}</a> <span class="muted small">${esc(w.date)} 올림</span></li>`).join("")}</ul>
+      <div class="src">출처: ${esc(week.source)} · ${esc(week.license)} · <a href="https://www.nongsaro.go.kr/portal/ps/psz/psza/contentMain.ps?menuId=PS00199" target="_blank" rel="noopener">농사로에서 더 보기</a></div>
     </section>`;
 }
 
@@ -776,12 +788,46 @@ document.addEventListener("change", e => {
   if (e.target.id === "nutri-pick") document.getElementById("nutri-body").innerHTML = nutriFacts(NUTRI[+e.target.value]);
 });
 
+// 농사로 실내정원용 식물·건조에 강한 실내식물: 원문 항목을 고치지 않고 짧은 값은 칸으로, 긴 값은 글로 보여 준다
+function nsIndoorCard(n, title) {
+  const short = v => v.length <= 30 && !v.includes("\n");
+  return `
+    <section class="card">
+      <h2>${title}</h2>
+      ${regionLine("nsindoor")}
+      ${n.items.map(it => `
+        ${n.items.length > 1 ? `<h3 class="sub">${esc(it.name)} <i class="muted small">${esc(it.sci)}</i></h3>` : ""}
+        ${it.img ? `<img class="air-img" src="${esc(it.img)}" alt="${esc(it.name)}" loading="lazy" referrerpolicy="no-referrer">` : ""}
+        <div class="facts">${it.fields.filter(([, v]) => short(v)).map(([k, v]) => `<div class="fact"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("")}</div>
+        <dl class="prose">${it.fields.filter(([, v]) => !short(v)).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`).join("")}
+      <div class="src">출처: ${esc(n.source)} · ${esc(n.license)} · 확인일 ${esc(n.retrieved)} · 원문을 고치지 않고 항목별로 실었습니다 · <a href="${esc(n.url)}" target="_blank" rel="noopener">자료 안내</a> ${reportBtn(title)}</div>
+    </section>`;
+}
+
+// 농사로 텃밭가꾸기: 글마다 접어 두고, 문장은 원문 그대로 줄 단위로 보여 준다
+function fildCard(f) {
+  return `
+    <section class="card">
+      <h2>텃밭에서 기르기</h2>
+      ${regionLine("fild")}
+      <div class="pests">${f.items.map(it => `
+        <details class="pest">
+          <summary><b>${esc(it.title)}</b></summary>
+          <div class="pest-body"><div class="lines">${it.lines.map(esc).join("\n")}</div>
+          ${it.omitted ? `<p class="small muted">담당자 이름·연락처가 든 줄 ${it.omitted}개와 그림은 싣지 않았습니다. 전체는 농사로에서 볼 수 있습니다.</p>` : `<p class="small muted">그림과 표 모양은 싣지 않았습니다. 전체는 농사로에서 볼 수 있습니다.</p>`}</div>
+        </details>`).join("")}
+      </div>
+      <div class="src">출처: ${esc(f.source)} · ${esc(f.license)} · 확인일 ${esc(f.retrieved)} · 문장은 고치지 않았습니다 · <a href="${esc(f.url)}" target="_blank" rel="noopener">자료 안내</a> ${reportBtn("텃밭에서 기르기")}</div>
+    </section>`;
+}
+
 // 쓰임과 효능: 자료마다 적힌 쓰임을 출처별로 나눠 보여 준다. 효능을 새로 판단하지 않고 적힌 대로만 옮긴다.
 const USE_KINDS = { med: "약재", food: "먹는 법", bee: "꿀벌", caution: "조심" };
 const srcBadge = (country, env) => `<span class="badge region-badge${country === "한국" ? "" : " abroad"}">${country} · ${env}</span>`;
 function usesCard(u, plantName) {
   const mf = u.mfds ? mfdsShown(u.mfds.items, plantName) : null;
-  const warn = u.web?.caution?.length || u.web?.pets?.length || u.garden?.items.some(([, , ks]) => ks.includes("caution"));
+  const warn = u.web?.caution?.length || u.web?.pets?.length || u.garden?.items.some(([, , ks]) => ks.includes("caution"))
+    || u.nsgarden?.toxic.some(([, , flag]) => flag);
   const parts = [];
   if (u.crop) parts.push(`
     <h3 class="sub">먹는 작물 ${srcBadge("한국", "농가·텃밭")}</h3>
@@ -801,6 +847,24 @@ function usesCard(u, plantName) {
     <div id="nutri-body">${nutriFacts(NUTRI[0])}</div>
     <div class="src">출처: ${esc(u.nutri.source)} · ${esc(u.nutri.license)} · 확인일 ${esc(u.nutri.retrieved)} · 값을 바꾸지 않고 실었습니다 · <a href="${esc(u.nutri.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
   }
+  if (u.nsgarden) parts.push(`
+    <h3 class="sub">실내정원용 식물 자료의 용도와 독성 ${srcBadge("한국", "실내")}</h3>
+    <div class="facts">${u.nsgarden.advise.map(([n, v]) => `<div class="fact"><span class="k">용도${u.nsgarden.advise.length > 1 ? ` (${esc(n)})` : ""}</span><span class="v">${esc(v)}</span></div>`).join("")}
+      ${u.nsgarden.toxic.map(([n, v, flag]) => `<div class="fact"><span class="k">독성${u.nsgarden.toxic.length > 1 ? ` (${esc(n)})` : ""}</span><span class="v">${flag ? `<span class="badge amber">${/[가-힣]/.test(v) ? "독 있음" : "독 있음 (영어 원문)"}</span> ` : ""}${esc(v)}</span></div>`).join("")}</div>
+    <div class="src">출처: ${esc(u.nsgarden.source)} · ${esc(u.nsgarden.license)} · 확인일 ${esc(u.nsgarden.retrieved)} · <a href="${esc(u.nsgarden.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
+  if (u.herb) parts.push(`
+    <h3 class="sub">민간약초 ${srcBadge("한국", "민간 전래")}</h3>
+    <p class="small genus-note">민간에서 전해 오는 쓰임을 농촌진흥청이 모은 기록입니다. 효과나 안전성이 확인된 치료법이 아니며, 독이 있는 식물도 있으니 그대로 따라 하지 마세요. 아프면 의사나 약사와 먼저 상담하세요.</p>
+    ${u.herb.items.map(it => `
+      ${u.herb.items.length > 1 ? `<h3 class="sub">${esc(it.name)}</h3>` : ""}
+      ${it.img ? `<img class="air-img" src="${esc(it.img)}" alt="${esc(it.name)}" loading="lazy" referrerpolicy="no-referrer">` : ""}
+      <div class="facts">
+        ${it.herbal ? `<div class="fact"><span class="k">생약 이름</span><span class="v">${esc(it.herbal)}</span></div>` : ""}
+        ${it.part ? `<div class="fact"><span class="k">쓰는 부위</span><span class="v">${esc(it.part)}</span></div>` : ""}
+      </div>
+      ${it.form ? `<dl class="prose"><dt>생김새와 쓰임</dt><dd>${esc(it.form)}</dd></dl>` : ""}
+      ${it.folk ? `<details class="more-items"><summary>민간요법 기록 보기 (검증되지 않은 방법)</summary><div class="lines">${esc(it.folk)}</div></details>` : ""}`).join("")}
+    <div class="src">출처: ${esc(u.herb.source)} · ${esc(u.herb.license)} · 확인일 ${esc(u.herb.retrieved)} · 원문을 고치지 않고 실었습니다 · <a href="${esc(u.herb.url)}" target="_blank" rel="noopener">자료 안내</a></div>`);
   if (u.air) parts.push(`
     <h3 class="sub">공기정화 ${srcBadge("한국", "실내")}</h3>
     <p>농촌진흥청 국립원예특작과학원이 고른 공기정화식물입니다.</p>
@@ -858,14 +922,17 @@ async function renderCare(id, genus) {
   if (!box || !decodeURIComponent(location.hash).includes(id || genus)) return;
 
   // 종 자체의 재배 자료가 없으면 속 전체에 연결된 재배 자료를 안내와 함께 보여 준다.
-  const useGenus = !(own?.grow || own?.air) && (forGenus?.grow || forGenus?.air);
+  const hasGrow = x => x?.grow || x?.air || x?.ns;
+  const useGenus = !hasGrow(own) && hasGrow(forGenus);
   const src = useGenus ? forGenus : own;
   const genusNote = useGenus && id
     ? `<p class="small genus-note">이 종만의 재배 자료는 없어, <a href="#/g/${encodeURIComponent(genus)}"><i>${esc(genus)}</i> 속</a> 전체에 연결된 자료를 보여 드립니다. 이 종에 꼭 맞지 않을 수 있습니다.</p>` : "";
   const webHtml = own?.web ? webCard(own.web, CI[id] ? fullName(CI[id].g, CI[id].r) : genus) + await winterCard(own.web) : "";
   const methods = [
-    ["indoor", "실내·화분", src?.air ? genusNote + airCard(src.air) : ""],
-    ["field", "노지·정원", (src?.grow ? genusNote + gardenCard(src.grow) : "") + webHtml],
+    ["indoor", "실내·화분", (src?.air || src?.ns?.garden || src?.ns?.dry ? genusNote : "") + (src?.air ? airCard(src.air) : "")
+      + (src?.ns?.garden ? nsIndoorCard(src.ns.garden, "실내정원용 식물 정보") : "") + (src?.ns?.dry ? nsIndoorCard(src.ns.dry, "건조에 강한 실내식물 정보") : "")],
+    ["field", "노지·정원", (src?.grow || src?.ns?.fild ? genusNote : "") + (src?.ns?.fild ? fildCard(src.ns.fild) : "")
+      + (src?.grow ? gardenCard(src.grow) : "") + webHtml],
     ["house", "시설·온실", ""],
     ["smart", "스마트팜", own?.smart ? smartCard(own.smart) : ""],
   ];
@@ -896,10 +963,10 @@ function methodEmpty(key, v) {
   if (key === "smart") return "공개된 공식 스마트팜 재배 기준은 지금 완숙토마토, 딸기, 파프리카 세 가지뿐입니다.";
   if (key === "house") {
     return crop
-      ? "농촌진흥청 농사로의 시설재배 자료를 연결하는 중입니다."
+      ? "이 작물의 시설·온실 재배 공식 자료는 아직 연결하지 못했습니다."
       : "이 식물의 시설·온실 재배 공식 자료는 아직 없습니다.";
   }
-  if (key === "field" && crop) return "농촌진흥청 농사로의 텃밭 재배 자료를 연결하는 중입니다.";
+  if (key === "field" && crop) return "농촌진흥청 농사로 텃밭가꾸기 자료에 이 작물의 글이 아직 없습니다.";
   return "이 재배 방식의 자료는 아직 없습니다. 확인되지 않은 정보는 싣지 않습니다.";
 }
 

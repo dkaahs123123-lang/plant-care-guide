@@ -207,6 +207,7 @@ mark { background: var(--amber-soft); color: var(--ink); padding: 0 2px; border-
 .use-list .badge { margin-right: 2px; }
 dl.caution { background: var(--amber-soft); padding: 8px 12px; border-radius: 8px; }
 .list-sub { margin: 18px 0 6px; color: var(--ink-2); }
+.lines { white-space: pre-line; line-height: 1.7; }
 .pests { display: grid; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 details.pest { border-top: 1px solid var(--line); }
 details.pest:first-child { border-top: 0; }
