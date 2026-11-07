@@ -1,0 +1,177 @@
+# 화훼 경매 품목명 -> 학명. 경매 이름과 도감 이름이 다르거나(호접란, 스톡크) 자동으로 맞추면 틀리는 것(라일락 -> 다육식물 품종)을 적는다.
+# '-' 는 여러 식물을 묶은 이름이거나(관엽류, 허브) 어느 식물인지 확실하지 않아 연결하지 않는 것
+# 경매 품목명	학명
+호접란	Phalaenopsis
+리시안사스	Eustoma grandiflorum
+칼라	Zantedeschia
+카라	Zantedeschia
+라넌큘러스	Ranunculus asiaticus
+라난크러스	Ranunculus asiaticus
+델피니움	Delphinium
+델피늄	Delphinium
+프리지아	Freesia
+후리지아	Freesia
+백합	Lilium
+스톡크	Matthiola incana
+옥시페탈륨	Oxypetalum coeruleum
+유칼립투스	Eucalyptus
+안개	Gypsophila paniculata
+안시리움	Anthurium
+안시디움	Anthurium
+마가렛	Argyranthemum frutescens
+마가렛트	Argyranthemum frutescens
+알스트메리아	Alstroemeria
+아스그레피아스	Asclepias
+캄파눌라	Campanula
+후록스	Phlox
+프록스	Phlox
+카랑코에	Kalanchoe blossfeldiana
+아미초	Ammi majus
+스카비오사	Scabiosa
+파니쿰	Panicum
+시레네	Silene
+아스틸베	Astilbe
+아네모네	Anemone coronaria
+조팝	Spiraea
+설유화	Spiraea thunbergii
+페라고늄	Pelargonium
+쿠루쿠마	Curcuma alismatifolia
+아그로네오마	Aglaonema
+영춘화	Jasminum nudiflorum
+디디스커스	Trachymene coerulea
+솔리다고	Solidago
+베로니카	Veronica
+부들레야	Buddleja
+편백	Chamaecyparis obtusa
+스파트필름	Spathiphyllum
+글로리오사	Gloriosa superba
+코스모스	Cosmos bipinnatus
+헬레보루스	Helleborus
+브바르디아	Bouvardia
+히야신스	Hyacinthus orientalis
+수선	Narcissus
+오니소갈룸	Ornithogalum
+극락조화	Strelitzia reginae
+하이페리콤	Hypericum
+틸란데시아	Tillandsia
+깅기아남	Dendrobium kingianum
+칼라데아	Calathea
+율마	Cupressus macrocarpa
+카틀레야	Cattleya
+사루비아	Salvia splendens
+에키놉스	Echinops
+알로카시아	Alocasia
+아카시아	Acacia
+아게라덤	Ageratum houstonianum
+아이리스	Iris
+스위트피	Lathyrus odoratus
+아가판서스	Agapanthus
+임파첸스	Impatiens walleriana
+루드베키아	Rudbeckia
+신고니움	Syngonium podophyllum
+숙근버베나	Verbena
+페페	Peperomia
+벤자민	Ficus benjamina
+니겔라	Nigella damascena
+사철	Euonymus japonicus
+도라지꽃	Platycodon grandiflorus
+등골나무	Eupatorium
+셀렘	Philodendron selloum
+이베리스	Iberis
+뽀삐	Papaver
+비덴스	Bidens
+게발선인장	Schlumbergera
+트리안	Muehlenbeckia complexa
+스모그트리	Cotinus coggygria
+홍가시	Photinia
+왁스플라워	Chamelaucium uncinatum
+산더소니아	Sandersonia aurantiaca
+심포리카르포스	Symphoricarpos
+필레아	Pilea
+밀리온벨	Calibrachoa
+멜라루카	Melaleuca
+가자니아	Gazania
+덴드로비움	Dendrobium
+오스테우스펄멈	Osteospermum
+부겐베리아	Bougainvillea
+버들나무	Salix
+송오브인디아	Dracaena reflexa
+아펠란트라	Aphelandra squarrosa
+사랑초	Oxalis triangularis
+에렌지움	Eryngium
+막실라리아	Maxillaria
+아킬레아	Achillea
+호주매화	Leptospermum scoparium
+마지나타	Dracaena marginata
+알라욱카리아	Araucaria heterophylla
+난타나	Lantana camara
+피토스포륨	Pittosporum
+루피너스	Lupinus
+비올라	Viola
+이끼시아	Ixia
+매화	Prunus mume
+한련화	Tropaeolum majus
+찔레	Rosa multiflora
+팬타스	Pentas lanceolata
+쿠페아	Cuphea
+가지마루	Ficus microcarpa
+드라코	Dracaena draco
+페츄니아	Petunia
+광나무(여정목)	Ligustrum japonicum
+푸미라	Ficus pumila
+폴리샤스	Polyscias
+후쿠샤	Fuchsia
+마리안느	Dieffenbachia
+코레우스	Coleus scutellarioides
+피어리스	Pieris japonica
+유리호프스	Euryops pectinatus
+층꽃	Caryopteris incana
+아르메니아	Armeria
+인삼펜다	Ficus microcarpa
+천리향	Daphne odora
+아티쵸크	Cynara cardunculus
+연밥	Nelumbo nucifera
+보르니아	Boronia
+헬레늄	Helenium
+자트로바	Jatropha
+라일락	Syringa vulgaris
+사포나리아	Saponaria
+행운목	Dracaena fragrans
+행운목(BOX)	Dracaena fragrans
+산데리아	Dracaena sanderiana
+프리뮬러	Primula
+무스카리	Muscari
+일일초	Catharanthus roseus
+비부리움	Viburnum
+헬리옵시스	Heliopsis
+금꿩의다리	-
+밥티시아	Baptisia
+크루시아	Clusia
+로벨리아	Lobelia erinus
+달개비	-
+관엽류	-
+야생화	-
+선인장(다육)	-
+허브	-
+절화	-
+소재	-
+열매	-
+절지	-
+초화류	-
+식충식물	-
+수경식물	-
+분갈이완제품	-
+고사리과	-
+야자류	-
+동양란	-
+양란	-
+그라스	-
+공작초	-
+냉이초	-
+석죽	-
+아젤리아	-
+쟈스민	-
+아스타	-
+유포로비아	-
+세덤	-
+알리움	-

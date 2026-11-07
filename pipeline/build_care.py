@@ -72,7 +72,8 @@ NCPMS_CATS = {"VC": "veg", "FT": "fruit", "FL": "flower", "FC": "grain", "IC": "
 # 한국어 대표 이름을 고를 때의 순서: 표준 국명 > 정원식물 > 실내식물 > 작물명
 # kfs_loose: 변종·품종이 종으로 합쳐져 들어온 국명(예: 보은대추나무 -> 대추나무 종). 대표 이름으로는 마지막에만 쓴다
 # 농사로(ns) 이름은 식약처 이름 뒤에 둔다. 농사로 실내식물 이름에는 '금목서', '황금세덤'처럼 품종·유통명이 종 이름으로 적힌 것이 있다
-NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose", "food", "food_syn", "ns")
+# price: 화훼 경매 품목 이름 (다른 이름이 하나도 없을 때만, 예: 리시안사스)
+NAME_PRIORITY = ("kfs", "garden", "air", "ncpms", "cases", "kfs_loose", "food", "food_syn", "ns", "price")
 ALT_FAMILIES = {"Compositae": "Asteraceae", "Leguminosae": "Fabaceae", "Cruciferae": "Brassicaceae", "Labiatae": "Lamiaceae",
                 "Umbelliferae": "Apiaceae", "Gramineae": "Poaceae", "Palmae": "Arecaceae", "Guttiferae": "Clusiaceae"}
 RANK_WORDS = ("var.", "subsp.", "f.")
@@ -326,7 +327,7 @@ def air_item(xml):
 def new_target():
     return {"crops": [], "ko": [], "names": {s: [] for s in NAME_PRIORITY}, "cats": set(), "kfs": [], "web": None, "smart": None, "cases": [],
             "diseases": [], "insects": [], "grow": [], "air": [], "notes": [], "air_notes": [], "food": [], "nutri": [], "food_ko": [],
-            "ns": {"garden": [], "dry": [], "herb": [], "fild": []}}
+            "ns": {"garden": [], "dry": [], "herb": [], "fild": []}, "price": [], "market": []}
 
 
 def pathogen_keys(text):
@@ -1149,6 +1150,174 @@ def add_fild(data_dir, targets, food_names, problems):
     print(f"농사로 텃밭가꾸기: 작물 글 {linked}개 연결")
 
 
+# 화훼 경매 시세 (한국농수산식품유통공사, 공공데이터포털 파일, 이용 제한 없음). pipeline/fetch_flowerprice.py 로 받는다
+PRICE_SOURCE = "한국농수산식품유통공사 화훼 경매 시세 (공공데이터포털)"
+PRICE_URL = "https://www.data.go.kr/data/15052544/fileData.do"
+PRICE_LINK = "https://flower.at.or.kr/main/flowerMain.do"
+GRADES = ["특1", "특2", "특3", "상1", "상2", "상3", "보1", "보2", "보3"]
+
+
+def add_flowerprice(data_dir, resolve, targets, meta, problems):
+    """경매 품목을 식물에 붙이고, 날짜·등급별로 품종들의 최저·최고·평균단가를 묶는다.
+    자동 연결은 작물 이름과 대표 이름만 쓴다 (다른 이름까지 쓰면 '라일락'이 다육식물 품종으로 가는 일이 생긴다).
+    나머지는 data/flower_map.tsv 의 학명으로 붙이고, '-' 는 붙이지 않는다"""
+    path = data_dir / "raw" / "flowerprice" / "flower_auction.csv"
+    if not path.exists():
+        return None
+    table = {r[0]: r[1] for r in read_tsv(data_dir / "flower_map.tsv")}
+    own = [s for s in NAME_PRIORITY if not s.startswith("food") and s != "price"]
+    by_name = defaultdict(set)
+    for key, t in targets.items():
+        for n in t["crops"] + [next((n for s in own for n in t["names"][s]), "")]:
+            if n:
+                by_name[n].add(key)
+    agg = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # (식물, 구분, 품목) -> 날짜 -> 등급 -> [최저, 최고, 평균] 목록
+    keys_of, missing = {}, defaultdict(int)
+    with open(path, encoding="cp949", errors="replace", newline="") as f:
+        for r in csv.DictReader(f):
+            item = r["품목명"].strip()
+            if item not in keys_of:
+                sci = table.get(item)
+                if sci == "-":
+                    keys_of[item] = None
+                elif sci:
+                    hit = resolve(sci)
+                    keys_of[item] = hit
+                    if not hit:
+                        problems.append(f"[화훼 시세] WFO에서 찾을 수 없는 학명: {item} -> {sci}")
+                else:
+                    ks = by_name.get(item, set())
+                    keys_of[item] = ("one", next(iter(ks))) if len(ks) == 1 else None
+            hit = keys_of[item]
+            if not hit:
+                missing[item] += 1
+                continue
+            key = hit[1] if hit[0] == "one" else hit[0]
+            if hit[0] != "one":
+                meta.setdefault(key, hit[1:])
+            try:
+                low, high, avg = (int(float(r[k])) for k in ("최저단가", "최고단가", "평균단가"))
+            except ValueError:
+                continue
+            agg[(key, r["화훼구분명"].strip(), item)][r["정산일자"]][r["등급명"].strip()].append((low, high, avg))
+    dates = sorted({d for days in agg.values() for d in days})
+    for (key, kind, item), days in agg.items():
+        t = targets[key]
+        t["names"]["price"].append(item)
+        t["ko"].append(item)
+        t["price"].append({"kind": kind, "item": item, "days": {
+            d: [[g, min(x[0] for x in v), max(x[1] for x in v), round(sum(x[2] for x in v) / len(v)), len(v)]
+                for g, v in sorted(grades.items(), key=lambda gv: GRADES.index(gv[0]) if gv[0] in GRADES else 99)]
+            for d, grades in sorted(days.items())}})
+    linked = {item for (_, _, item) in agg}
+    print(f"화훼 시세: 품목 {len(keys_of)}개 중 {len(linked)}개를 식물 {len({k for k, _, _ in agg})}종에 연결 "
+          f"(줄 기준 {sum(missing.values())}줄은 연결 안 됨), 기간 {dates[0] if dates else '-'} ~ {dates[-1] if dates else '-'}")
+    return {"from": dates[0], "to": dates[-1]} if dates else None
+
+
+# 도매시장 경매 정산 가격 (한국농수산식품유통공사 전국 공영도매시장 정산정보, 이용 제한 없음). pipeline/fetch_market.py 로 매일 받는다
+MARKET_SOURCE = "한국농수산식품유통공사 전국 공영도매시장 정산정보 (공공데이터포털)"
+MARKET_URL = "https://www.data.go.kr/data/15141809/openapi.do"
+MARKET_DAYS = 60  # 화면에 싣는 기간 (파일 크기 때문에 최근 60일만)
+MARKET_PROCESSED = re.compile(r"절임|깐|냉동|건조|말린|세척|다진|가공|분말|즙")
+MARKET_GROUPS = {"미곡류", "맥류", "두류", "잡곡류", "서류", "과실류", "수실류", "과일과채류", "과채류", "엽경채류", "근채류", "조미채소류",
+                 "양채류", "산채류", "특용작물류", "인삼류"}
+
+
+def add_market(data_dir, resolve, targets, meta, problems):
+    """날마다 받은 정산 가격을 품목별로 식물에 붙인다. 품종은 합치고 시장·등급·단위별로 묶는다.
+    가격은 상자 크기와 상관없이 1kg(또는 1개·1단)당 값이다. g 단위는 kg으로 바꾼다.
+    받은 파일의 '최저·최고' 자리에는 거래량 기준 가운데 80% 범위(10%·90% 지점)가 들어 있다"""
+    raw = data_dir / "raw" / "market"
+    files = sorted(raw.glob("20??-??-??.json"))[-MARKET_DAYS:]
+    if not files:
+        return None
+    table = {r[0]: r[1] for r in read_tsv(data_dir / "market_map.tsv")}
+    own = [s for s in NAME_PRIORITY if not s.startswith("food") and s not in ("price", "ns")]
+    by_name = defaultdict(set)
+    for key, t in targets.items():
+        for n in t["crops"] + [next((n for s in own for n in t["names"][s]), "")]:
+            if n:
+                by_name[n].add(key)
+    keys_of = {}
+
+    def key_for(item):
+        if item not in keys_of:
+            sci = table.get(item)
+            if sci == "-":
+                keys_of[item] = None
+            elif sci:
+                hit = resolve(sci)
+                if not hit:
+                    problems.append(f"[도매시장 시세] WFO에서 찾을 수 없는 학명: {item} -> {sci}")
+                keys_of[item] = hit
+            else:
+                ks = by_name.get(item, set())
+                keys_of[item] = ("one", next(iter(ks))) if len(ks) == 1 else None
+        return keys_of[item]
+
+    agg = defaultdict(lambda: defaultdict(dict))  # (식물, 품목) -> 날짜 -> (시장, 등급, 단위) -> [총가격, 물량, 최저, 최고, 건수, 산지별 물량]
+    packs = defaultdict(lambda: defaultdict(int))  # (식물, 품목) -> (단위, 한 포장의 양, 포장 이름) -> 거래 건수
+    unit_qty = defaultdict(lambda: defaultdict(float))  # (식물, 품목) -> 단위 -> 물량 (품목의 주 단위를 고를 때)
+    dates = []
+    for f in files:
+        day = json.loads(f.read_text(encoding="utf-8"))
+        if day["rows"]:
+            dates.append(day["date"])
+        for group, item, variety, mkt, grade, unit, tot, qty, low, high, lots, origin, *rest in day["rows"]:
+            # 절임배추·깐마늘처럼 손질·가공한 것은 같은 품목이라도 값이 달라 섞지 않는다
+            if group not in MARKET_GROUPS or MARKET_PROCESSED.search(variety):
+                continue
+            hit = key_for(item)
+            if not hit:
+                continue
+            key = hit[1] if hit[0] == "one" else hit[0]
+            if hit[0] != "one":
+                meta.setdefault(key, hit[1:])
+            pk_list = rest[0] if rest else []
+            if unit == "g":
+                unit, qty, low, high = "kg", qty / 1000, low * 1000, high * 1000
+                pk_list = [[q / 1000, name, n] for q, name, n in pk_list]
+            for q, name, n in pk_list:
+                packs[(key, item)][(unit, q, name)] += n
+            unit_qty[(key, item)][unit] += qty
+            g = agg[(key, item)][day["date"]].setdefault((mkt, grade if grade not in ("", ".") else "등급 없음", unit),
+                                                         [0, 0.0, 0.0, 0.0, 0, defaultdict(float)])
+            # 품종을 합칠 때 가운데 80% 범위는 거래량으로 가중 평균한다 (가장 낮은·높은 품종 범위를 그대로 쓰면 너무 넓어진다)
+            g[0] += tot
+            g[1] += qty
+            g[2] += low * qty
+            g[3] += high * qty
+            g[4] += lots
+            if origin:
+                g[5][origin] += qty
+    def day_summary(rows):
+        """하루치: 전국 평균(모든 시장, 등급·단위별 거래량 가중)과 거래량이 많은 시장 줄 20개만 싣는다 (파일이 너무 커지지 않게)"""
+        nat = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
+        for (m, gr, u), v in rows.items():
+            n = nat[(gr, u)]
+            n[0] += v[0]; n[1] += v[1]; n[2] += v[2]; n[3] += v[3]
+        total = sum(n[1] for n in nat.values())
+        lines = sorted(([m, gr, u, round(v[0] / v[1]), round(v[2] / v[1]), round(v[3] / v[1]), round(v[1]), v[4],
+                         max(v[5], key=v[5].get) if v[5] else ""] for (m, gr, u), v in rows.items() if v[1] > 0), key=lambda r: -r[6])
+        # 전체 거래량의 1%도 안 되는 등급(드문 '8등' 등)은 전국 평균에서 뺀다
+        return {"n": [[gr, u, round(n[0] / n[1]), round(n[2] / n[1]), round(n[3] / n[1]), round(n[1])]
+                      for (gr, u), n in nat.items() if n[1] >= total * 0.01],
+                "m": lines[:20], "more": max(0, len(lines) - 20)}
+
+    for (key, item), days in agg.items():
+        t = targets[key]
+        t["ko"].append(item)
+        # 가장 많이 거래된 포장(예: 10kg 상자)으로 값을 보여 준다. 품목의 주 단위(물량이 가장 많은 단위)의 포장 중에서 고른다
+        main_unit = max(unit_qty[(key, item)], key=unit_qty[(key, item)].get)
+        cand = {k: n for k, n in packs[(key, item)].items() if k[0] == main_unit and k[1] > 0}
+        pack = max(cand, key=cand.get) if cand else None
+        t["market"].append({"item": item, "pack": {"unit": pack[0], "qty": pack[1], "name": pack[2]} if pack else None,
+                            "days": {d: day_summary(rows) for d, rows in sorted(days.items())}})
+    print(f"도매시장 시세: {len(dates)}일치, 품목 {len({i for _, i in agg})}개를 식물 {len({k for k, _ in agg})}종에 연결")
+    return {"from": dates[0], "to": dates[-1]} if dates else None
+
+
 def write_week(data_dir, out_path):
     path = data_dir / "raw" / "nongsaro" / "weekFarmInfo_list.json"
     if not path.exists():
@@ -1337,6 +1506,8 @@ def main(data_dir, out_dir):
     food_date, food_names = add_foodraw(data_dir, resolve, targets, problems)
     nutri_date = add_foodnutri(data_dir, targets, food_names, problems)
     add_fild(data_dir, targets, food_names, problems)
+    price_range = add_flowerprice(data_dir, resolve, targets, meta, problems)
+    market_range = add_market(data_dir, resolve, targets, meta, problems)
     corrections = apply_corrections(data_dir, resolve, targets, problems)
     for key in [k for k, t in targets.items() if t.get("hidden")]:
         del targets[key]
@@ -1346,6 +1517,11 @@ def main(data_dir, out_dir):
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("*.json"):
         old.unlink()
+    price_dir, market_dir = out.parent / "price", out.parent / "market"
+    for d in (price_dir, market_dir):
+        d.mkdir(parents=True, exist_ok=True)
+        for old in d.glob("*.json"):
+            old.unlink()
     index = {}
     # 식약처 원료 이름은 다른 식물이 이미 쓰는 이름이면 대표 이름으로 쓰지 않는다 (같은 이름 두 식물이 생기지 않게)
     own_name = lambda t: t.get("override_name") or next((n for s in NAME_PRIORITY if not s.startswith("food") for n in t["names"][s]), "")
@@ -1386,12 +1562,20 @@ def main(data_dir, out_dir):
             doc["uses"] = uses
             t["cats"] |= use_cats
         (out / f"{key.replace(':', '-')}.json").write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        if t["market"]:
+            (market_dir / f"{key.replace(':', '-')}.json").write_text(json.dumps(
+                {"source": MARKET_SOURCE, "url": MARKET_URL, **market_range, "items": t["market"]},
+                ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        if t["price"]:
+            (price_dir / f"{key.replace(':', '-')}.json").write_text(json.dumps(
+                {"source": PRICE_SOURCE, "url": PRICE_URL, "link": PRICE_LINK, **price_range, "items": t["price"]},
+                ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         name = t.get("override_name") or next((n for s in NAME_PRIORITY for n in t["names"][s]
                                                   if not s.startswith("food") or n not in taken), "")
         index[key] = {
             "g": genus, "r": rest, "name": name, "crops": t["crops"], "ko": list(dict.fromkeys(t["ko"] + t["food_ko"])),
             "cats": sorted(t["cats"]), "nd": len(t["diseases"]), "ni": len(t["insects"]),
-            "grow": bool(t["grow"] or t["air"] or t["ns"]["garden"] or t["ns"]["dry"] or t["ns"]["fild"]), "web": bool(t["web"]), "smart": bool(t["smart"]), "nc": len(t["cases"]),
+            "grow": bool(t["grow"] or t["air"] or t["ns"]["garden"] or t["ns"]["dry"] or t["ns"]["fild"]), "price": bool(t["price"]), "market": bool(t["market"]), "web": bool(t["web"]), "smart": bool(t["smart"]), "nc": len(t["cases"]),
         }
     (out / "index.json").write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 

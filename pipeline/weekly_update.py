@@ -7,6 +7,7 @@
 - NC State 자료는 상대 서버 부담을 줄이려고 매주 4분의 1씩 돌아가며 다시 받는다 (4주마다 전체 갱신).
 - 공개 전 점검(check_site.py)에서 문제가 나오면 공개하지 않는다.
 - 기록은 logs/weekly-날짜.log 에 남는다.
+- --daily 로 실행하면 도매시장 시세(최근 며칠)만 받아 사이트를 다시 만들고 올린다. 기록은 logs/daily-날짜.log
 """
 import datetime
 import json
@@ -19,11 +20,11 @@ PY = [sys.executable, "-I"]
 SITE_URL = "https://dkaahs123123-lang.github.io/plant-care-guide/"
 
 
-def main():
+def main(daily=False):
     today = datetime.date.today()
     log_dir = ROOT / "logs"
     log_dir.mkdir(exist_ok=True)
-    log = open(log_dir / f"weekly-{today}.log", "a", encoding="utf-8")
+    log = open(log_dir / f"{'daily' if daily else 'weekly'}-{today}.log", "a", encoding="utf-8")
 
     def say(msg):
         line = f"[{datetime.datetime.now():%H:%M:%S}] {msg}"
@@ -48,9 +49,14 @@ def main():
         (PY + ["pipeline/fetch_ncsu.py", "data/plants.db", "data/raw/ncsu", f"--part={part}/4"], f"NC State ({part + 1}/4 묶음)"),
         (PY + ["pipeline/fetch_nongsaro.py", "data/raw/nongsaro"], "농사로(실내정원·건조 실내식물·민간약초·텃밭·주간농사정보)"),
         (PY + ["pipeline/fetch_commons.py", "data/commons_wanted.json", "data/raw/commons"], "병해충 참고 사진(위키미디어 공용)"),
+        (PY + ["pipeline/fetch_flowerprice.py", "data/raw/flowerprice"], "화훼 경매 시세(새 파일이 있을 때만)"),
         (PY + ["pipeline/fetch_foodraw.py", "data/raw/foodraw"], "식품 원료(식약처)"),
         (PY + ["pipeline/fetch_foodnutri.py", "data/raw/foodnutri"], "영양성분(국가표준식품성분)"),
+        (PY + ["pipeline/fetch_market.py", "data/raw/market", "--days=10"], "도매시장 시세"),
     ]
+    if daily:
+        # 정산이 늦게 들어오는 날이 있어 최근 5일을 다시 받는다
+        steps = [(PY + ["pipeline/fetch_market.py", "data/raw/market", "--days=5"], "도매시장 시세(매일)")]
     failed = [what for args, what in steps if not run(args, what)]
     if failed:
         say(f"자료를 받지 못한 곳: {', '.join(failed)} (예전 자료로 계속합니다)")
@@ -73,7 +79,7 @@ def main():
     if git("diff", "--cached", "--quiet").returncode == 0:
         say("바뀐 내용이 없어 공개 사이트는 그대로 둡니다.")
         return 0
-    git("commit", "-m", f"주간 자료 갱신 {today}")
+    git("commit", "-m", f"{'매일 시세' if daily else '주간 자료'} 갱신 {today}")
     push = git("push", "origin", "main")
     split = git("subtree", "split", "--prefix", "site", "main").stdout.strip()
     pages = git("push", "-f", "origin", f"{split}:gh-pages")
@@ -85,4 +91,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(daily="--daily" in sys.argv))

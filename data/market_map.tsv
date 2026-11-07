@@ -1,0 +1,143 @@
+# 도매시장 경매 품목명(상품 중분류) -> 학명. 도감 이름과 다르거나(단감·곶감 -> 감나무) 부위·가공 이름(깻잎, 무청)인 것을 적는다.
+# '-' 는 여러 식물을 묶은 이름이거나(기타, 산나물) 다른 식물로 갈 수 있어(쪽파) 연결하지 않는 것. 표에 없으면 작물 이름·대표 이름이 같은 식물에 붙인다
+# 경매 품목명	학명
+쌀	Oryza sativa
+찹쌀	Oryza sativa
+현미	Oryza sativa
+찰벼	Oryza sativa
+밭벼	Oryza sativa
+총체벼	Oryza sativa
+밀쌀	Triticum aestivum
+보리쌀	Hordeum vulgare
+완두	Pisum sativum
+렌틸콩	Lens culinaris
+병아리콩	Cicer arietinum
+제비콩	Lablab purpureus
+칼콩	Canavalia gladiata
+야콘	Smallanthus sonchifolius
+곶감	Diospyros kaki
+단감	Diospyros kaki
+떫은감	Diospyros kaki
+레몬	Citrus limon
+오렌지	Citrus sinensis
+자몽	Citrus paradisi
+금감	Citrus japonica
+탄제린	Citrus reticulata
+석류	Punica granatum
+오디	Morus alba
+보리수	Elaeagnus umbellata
+산사	Crataegus pinnatifida
+참다래(키위)	Actinidia chinensis var. deliciosa
+탱자	Citrus trifoliata
+으름	Akebia quinata
+체리자두	Prunus cerasifera
+하스카프	Lonicera caerulea
+파파야	Carica papaya
+코코넛	Cocos nucifera
+페이조아	Feijoa sellowiana
+리치	Litchi chinensis
+용안	Dimocarpus longan
+망고스턴	Garcinia mangostana
+람부탄	Nephelium lappaceum
+아몬드	Prunus dulcis
+피스타치오	Pistacia vera
+은행	Ginkgo biloba
+잣	Pinus koraiensis
+호두	Juglans regia
+캐슈넛	Anacardium occidentale
+방울토마토	Solanum lycopersicum
+깻잎	Perilla frutescens
+겨자잎	Brassica juncea
+겨자채	Brassica juncea
+겨자	Brassica juncea
+고추잎	Capsicum annuum
+꽈리고추	Capsicum annuum
+풋고추	Capsicum annuum
+홍고추	Capsicum annuum
+건고추	Capsicum annuum
+할라피뇨	Capsicum annuum
+피망(단고추)	Capsicum annuum
+고구마순	Ipomoea batatas
+무순	Raphanus sativus
+무청	Raphanus sativus
+알타리무	Raphanus sativus
+봄동배추	Brassica rapa subsp. pekinensis
+얼갈이배추	Brassica rapa subsp. pekinensis
+숙주나물	Vigna radiata
+콩나물	Glycine max
+콩잎	Glycine max
+토란대	Colocasia esculenta
+우엉대	Arctium lappa
+머위대	Petasites japonicus
+돗나물	Sedum sarmentosum
+피마자잎	Ricinus communis
+아주까리	Ricinus communis
+보리순	Hordeum vulgare
+귀리순	Avena sativa
+메밀순	Fagopyrum esculentum
+음나무순	Kalopanax septemlobus
+가죽나물	Toona sinensis
+참죽나무순	Toona sinensis
+루콜라	Eruca vesicaria
+루꼴라	Eruca vesicaria
+함초	Salicornia europaea
+신선초	Angelica keiskei
+몰로키아	Corchorus olitorius
+얼래지	Erythronium japonicum
+연근	Nelumbo nucifera
+삼채	Allium hookeri
+대파	Allium fistulosum
+실파	Allium fistulosum
+방아	Agastache rugosa
+염교(락교)	Allium chinense
+루바브	Rheum rhabarbarum
+로메인	Lactuca sativa
+양상추	Lactuca sativa
+미니코스	Lactuca sativa
+적채	Brassica oleracea var. capitata
+칼리플라워(꽃양배추)	Brassica oleracea var. botrytis
+방울양배추(스프로스)	Brassica oleracea var. gemmifera
+셀러리(양미나리)	Apium graveolens
+파세리(향미나리)	Petroselinum crispum
+비트(붉은사탕무우)	Beta vulgaris
+크레송(고추무냉이)	Nasturtium officinale
+라디치오	Cichorium intybus
+알로애	Aloe vera
+컴프리	Symphytum officinale
+커민	Cuminum cyminum
+고비	Osmunda japonica
+두릅	Aralia elata
+방풍나물	Peucedanum japonicum
+취나물	Aster scaber
+곤드레나물	Cirsium setidens
+죽순	Phyllostachys
+유채나물	Brassica napus
+개망초나물	Erigeron annuus
+삼나물	Aruncus dioicus
+새발나물	Spergularia marina
+수세미	Luffa aegyptiaca
+모시	Boehmeria nivea
+해바라기씨	Helianthus annuus
+수삼	Panax ginseng
+백삼	Panax ginseng
+홍삼	Panax ginseng
+묘삼	Panax ginseng
+쪽파	-
+기타	-
+혼합과실	-
+산나물	-
+새싹	-
+어린잎	-
+쌈채	-
+식용허브	-
+묵나물	-
+시레기	-
+채소묘	-
+차류	-
+커피류	-
+비타민	-
+만감	-
+플럼코트	-
+플루오트	-
+씨앗	-
+열매	-

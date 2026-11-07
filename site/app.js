@@ -961,12 +961,19 @@ async function renderCare(id, genus) {
   ];
   const pestSrc = own?.pests ? own : forGenus?.pests ? forGenus : null;
   box.innerHTML = [
+    `<div id="price-box"><div id="flower-price"></div><div id="market-price"></div></div>`,
     methods.some(m => m[2]) || isCrop(CI[id]) ? methodTabs(methods, CI[id]) : (id ? `<section class="card pending"><h2>키우는 방법</h2><p>이 식물은 아직 재배 자료가 없습니다. 확인되지 않은 정보는 싣지 않습니다.</p></section>` : ""),
     own?.uses ? usesCard(own.uses, CI[id]?.name) : !id && forGenus?.uses ? usesCard(forGenus.uses, CI[`g:${genus}`]?.name) : "",
     pestSrc ? pestCard(pestSrc, genus, id) : (id && methods.some(m => m[2]) ? `<section class="card pending"><h2>병해충</h2><p>이 식물은 아직 공공기관의 병해충 자료가 없습니다.</p></section>` : ""),
     own?.cases ? casesCard(own.cases) : "",
     own?.kfs ? kfsCard(own.kfs, CI[id]?.name) : "",
   ].join("");
+
+  // 시세는 따로 불러와 키우는 방법 위에 넣는다. 종에 없으면 속 전체 시세를 안내와 함께 보여 준다
+  const priceKey = id && CI[id]?.price ? id : CI[`g:${genus}`]?.price ? `g:${genus}` : null;
+  if (priceKey) loadPrice(priceKey, id && priceKey !== id ? genus : "");
+  const marketKey = id && CI[id]?.market ? id : CI[`g:${genus}`]?.market ? `g:${genus}` : null;
+  if (marketKey) loadMarket(marketKey, id && marketKey !== id ? genus : "");
 
   // 증상 검색 결과에서 들어왔으면 그 병해충이나 사례를 펼쳐서 보여 준다
   if (OPEN_PEST) {
@@ -977,6 +984,194 @@ async function renderCare(id, genus) {
     if (d) { d.open = true; d.scrollIntoView({ block: "start" }); }
   }
 }
+
+// ---------- 시세: 화훼공판장 경매가 ----------
+// 날짜를 고르면 그날의 등급별 경매가를 보여 준다. 경매가 없는 날(주말 등)을 고르면 바로 앞 경매일을 보여 준다.
+let PRICE = null;
+const won = n => `${Number(n).toLocaleString("ko-KR")}원`;
+const dayLabel = d => new Date(`${d}T00:00:00`).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
+async function loadPrice(key, genusNote) {
+  const p = await optional(getJSON(`data/price/${key.replace(":", "-")}.json`));
+  const box = document.getElementById("flower-price");
+  if (!p || !box) return;
+  PRICE = { ...p, item: 0 };
+  const last = mainDay(0);
+  box.innerHTML = `
+    <section class="card price">
+      <h2>시세 <span class="muted small">화훼공판장 경매가</span></h2>
+      <div class="region"><span class="badge region-badge">한국 · 화훼공판장 경매</span><span class="small muted">전국 5대 화훼공판장에서 경매로 정해진 도매 가격입니다.</span></div>
+      ${genusNote ? `<p class="small genus-note">이 종만의 시세는 없어 <i>${esc(genusNote)}</i> 속 전체 품목의 시세를 보여 드립니다.</p>` : ""}
+      <div class="price-controls">
+        ${p.items.length > 1 ? `<label class="field small">품목 <select id="price-item">${p.items.map((it, i) => `<option value="${i}">${esc(it.kind)} · ${esc(it.item)}</option>`).join("")}</select></label>`
+          : `<span class="field small">품목 <b class="one-item">${esc(p.items[0].kind)} · ${esc(p.items[0].item)}</b></span>`}
+        <label class="field small">날짜 <input type="date" id="price-date" min="${esc(p.from)}" max="${esc(p.to)}" value="${esc(last)}"></label>
+        <span class="price-step"><button type="button" class="btn-small" data-step="-1">◀ 이전 경매일</button><button type="button" class="btn-small" data-step="1">다음 경매일 ▶</button></span>
+      </div>
+      <div id="price-body">${priceBody(last)}</div>
+      <p class="small muted">도매 경매 가격이라 꽃집에서 사는 가격과 다릅니다. 같은 등급의 여러 품종을 모은 값이고, 평균은 품종별 평균단가의 평균입니다. 자료에 거래 단위(한 단, 한 분 등)는 적혀 있지 않습니다.</p>
+      <div class="src">출처: ${esc(p.source)} · 이용 제한 없음 · 자료 기간 ${esc(p.from)} ~ ${esc(p.to)} · <a href="${esc(p.url)}" target="_blank" rel="noopener">자료 안내</a> · <a href="${esc(p.link)}" target="_blank" rel="noopener">화훼유통정보시스템에서 더 보기</a> ${reportBtn("시세")}</div>
+    </section>`;
+}
+// 품목마다 큰 경매가 열리는 요일이 따로 있어(예: 절화 장미는 월·수·금) 다른 날은 거래가 몇 건뿐이다.
+// 그날 거래된 품종 수가 보통 날의 4분의 1도 안 되면 '거래가 적은 날'로 보고, 처음에는 거래가 많았던 가장 최근 날을 보여 준다
+const dayCount = rows => rows.reduce((a, r) => a + r[4], 0);
+function priceTypical(i) {
+  const counts = Object.values(PRICE.items[i].days).map(dayCount).sort((a, b) => a - b);
+  return counts[Math.floor(counts.length / 2)] || 0;
+}
+function mainDay(i) {
+  const days = PRICE.items[i].days, typical = priceTypical(i);
+  return Object.keys(days).reverse().find(d => dayCount(days[d]) * 4 >= typical) || Object.keys(days).pop();
+}
+function priceBody(want) {
+  const days = PRICE.items[PRICE.item].days;
+  const dates = Object.keys(days);
+  // 고른 날에 경매가 없으면 바로 앞 경매일, 그것도 없으면 바로 뒤 경매일
+  const d = days[want] ? want : [...dates].reverse().find(x => x < want) || dates.find(x => x > want);
+  if (!d) return `<p class="small muted">이 품목의 경매 기록이 없습니다.</p>`;
+  return `
+    <h3 class="sub">${esc(dayLabel(d))}</h3>
+    ${d !== want ? `<p class="small genus-note">${esc(dayLabel(want))}에는 이 품목의 경매가 없어 가장 가까운 경매일의 시세를 보여 드립니다.</p>` : ""}
+    ${dayCount(days[d]) * 4 < priceTypical(PRICE.item) ? `<p class="small genus-note">이날은 거래가 적었던 날이에요 (거래된 품종 ${dayCount(days[d])}개, 보통 날은 ${priceTypical(PRICE.item)}개 안팎). 값이 들쭉날쭉할 수 있어요.</p>` : ""}
+    <table class="price-table">
+      <thead><tr><th>등급</th><th>평균</th><th>최저 ~ 최고</th><th>품종 수</th></tr></thead>
+      <tbody>${days[d].map(([g, low, high, avg, n]) => `<tr><td>${esc(g)}</td><td class="mono"><b>${won(avg)}</b></td><td class="mono">${won(low)} ~ ${won(high)}</td><td class="mono">${n}</td></tr>`).join("")}</tbody>
+    </table>`;
+}
+function priceGo(d) {
+  document.getElementById("price-date").value = d;
+  document.getElementById("price-body").innerHTML = priceBody(d);
+}
+document.addEventListener("change", e => {
+  if (!PRICE) return;
+  if (e.target.id === "price-item") {
+    PRICE.item = +e.target.value;
+    priceGo(mainDay(PRICE.item));
+  }
+  if (e.target.id === "price-date" && e.target.value) priceGo(e.target.value);
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-step]");
+  if (!b || !PRICE) return;
+  const dates = Object.keys(PRICE.items[PRICE.item].days);
+  const cur = document.getElementById("price-date").value;
+  const step = +b.dataset.step;
+  const next = step < 0 ? [...dates].reverse().find(x => x < cur) : dates.find(x => x > cur);
+  if (next) priceGo(next);
+});
+
+// ---------- 시세: 전국 공영도매시장 경매가 (채소·과일 등) ----------
+// 받은 값은 1kg(또는 1개·1단)당 가격. 한 줄 = [시장, 등급, 단위, 평균, 가운데 80% 아래, 위, 거래량, 거래 건수, 주 산지]
+let MKT = null;
+const GRADE_ORDER = ["특", "상", "보통", "중", "하", "등외", "등급 없음"];
+const perUnit = u => u === "kg" ? "1kg당" : `1${u}당`;
+// 품목에서 가장 많이 거래된 포장(예: 10kg 상자)으로 값을 바꾼다. 그 포장과 단위가 다른 줄은 1kg(1개)당 그대로 보여 준다
+const packLabel = p => {
+  const size = p.unit === "kg" && p.qty < 1 ? `${Math.round(p.qty * 1000)}g` : `${Number(p.qty).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}${p.unit}`;
+  return `${size}${p.name ? ` ${p.name}` : ""}당`;
+};
+function priceCell(v, unit, strong = true) {
+  const p = MKT.items[MKT.item].pack;
+  if (p && p.unit === unit && p.qty !== 1) {
+    const main = won(Math.round(v * p.qty));
+    // 포장 기준은 표 머리에 한 번만 적고, 칸에는 값과 1kg당 값만 둔다 (휴대폰에서 표가 넓어지지 않게)
+    return `${strong ? `<b>${main}</b>` : main}${strong ? `<br><span class="muted small">${perUnit(unit)} ${won(v)}</span>` : ""}`;
+  }
+  return `${strong ? `<b>${won(v)}</b>` : won(v)} <span class="muted small">${perUnit(unit)}</span>`;
+}
+const rangeCell = (lo, hi, unit) => {
+  const p = MKT.items[MKT.item].pack;
+  const k = p && p.unit === unit && p.qty !== 1 ? p.qty : 1;
+  return `<span class="rng">${won(Math.round(lo * k))} ~</span> <span class="rng">${won(Math.round(hi * k))}</span>`;
+};
+const amount = (q, u) => u === "kg"
+  ? (q >= 1000 ? `${(q / 1000).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}톤` : `${Math.round(q).toLocaleString("ko-KR")}kg`)
+  : `${Math.round(q).toLocaleString("ko-KR")}${u}`;
+async function loadMarket(key, genusNote) {
+  const m = await optional(getJSON(`data/market/${key.replace(":", "-")}.json`));
+  const box = document.getElementById("market-price");
+  if (!m || !box) return;
+  MKT = { ...m, item: 0 };
+  const last = Object.keys(m.items[0].days).pop();
+  box.innerHTML = `
+    <section class="card price">
+      <h2>시세 <span class="muted small">도매시장 경매가</span></h2>
+      <div class="region"><span class="badge region-badge">한국 · 전국 공영도매시장</span><span class="small muted">전국 33개 공영도매시장에서 경매로 정해진 도매 가격입니다. 매일 새로 받습니다.</span></div>
+      ${genusNote ? `<p class="small genus-note">이 종만의 시세는 없어 <i>${esc(genusNote)}</i> 속 전체 품목의 시세를 보여 드립니다.</p>` : ""}
+      <div class="price-controls">
+        ${m.items.length > 1 ? `<label class="field small">품목 <select id="mkt-item">${m.items.map((it, i) => `<option value="${i}">${esc(it.item)}</option>`).join("")}</select></label>`
+          : `<span class="field small">품목 <b class="one-item">${esc(m.items[0].item)}</b></span>`}
+        <label class="field small">날짜 <input type="date" id="mkt-date" min="${esc(m.from)}" max="${esc(m.to)}" value="${esc(last)}"></label>
+        <span class="price-step"><button type="button" class="btn-small" data-mstep="-1">◀ 이전 경매일</button><button type="button" class="btn-small" data-mstep="1">다음 경매일 ▶</button></span>
+      </div>
+      <div id="mkt-body">${marketBody(last)}</div>
+      <p class="small muted">도매 가격이라 시장·마트에서 사는 가격과 다릅니다. 상자 크기가 제각각이라 1kg(또는 1개·1단)당 값으로 맞춘 뒤, 그 품목에서 가장 많이 거래된 포장 크기로 다시 계산했습니다. '대부분 거래 가격'은 거래량 기준으로 아래 10%와 위 10%를 뺀 가운데 80% 범위입니다. 절임·깐 것 같은 손질·가공품은 뺐습니다.</p>
+      <div class="src">출처: ${esc(m.source)} · 이용 제한 없음 · 최근 ${esc(m.from)} ~ ${esc(m.to)} · <a href="${esc(m.url)}" target="_blank" rel="noopener">자료 안내</a> ${reportBtn("도매시장 시세")}</div>
+    </section>`;
+}
+// 전국 평균: 사이트를 만들 때 모든 시장 줄로 미리 계산해 둔 값 [등급, 단위, 평균, 범위 아래, 위, 거래량]
+const GRADE_RANK = gr => (GRADE_ORDER.indexOf(gr) + 1) || 99;
+function nationwide(day) {
+  return day.n.map(([grade, unit, avg, lo, hi, qty]) => ({ grade, unit, avg, lo, hi, qty }))
+    .sort((a, b) => GRADE_RANK(a.grade) - GRADE_RANK(b.grade) || b.qty - a.qty);
+}
+function marketBody(want) {
+  const days = MKT.items[MKT.item].days;
+  const dates = Object.keys(days);
+  const d = days[want] ? want : [...dates].reverse().find(x => x < want) || dates.find(x => x > want);
+  if (!d) return `<p class="small muted">이 품목의 경매 기록이 없습니다.</p>`;
+  const now = nationwide(days[d]);
+  // 1주 전: 7일 이상 앞선 날 중 가장 가까운 경매일
+  const weekAgo = new Date(new Date(`${d}T00:00:00Z`).getTime() - 7 * 864e5).toISOString().slice(0, 10);
+  const prevDay = [...dates].reverse().find(x => x <= weekAgo);
+  const prev = prevDay ? new Map(nationwide(days[prevDay]).map(x => [`${x.grade}|${x.unit}`, x.avg])) : new Map();
+  const change = x => {
+    const p = prev.get(`${x.grade}|${x.unit}`);
+    if (!p) return `<span class="muted">-</span>`;
+    const r = Math.round((x.avg - p) / p * 100);
+    return r === 0 ? "비슷함" : `<span class="${r > 0 ? "up" : "down"}">${r > 0 ? "▲" : "▼"} ${Math.abs(r)}%</span>`;
+  };
+  const rows = days[d].m;
+  const row = r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="mono">${priceCell(r[3], r[2])}</td><td class="mono">${rangeCell(r[4], r[5], r[2])}</td><td class="mono">${amount(r[6], r[2])}</td><td class="small">${esc(r[8] || "-")}</td></tr>`;
+  const pack = MKT.items[MKT.item].pack;
+  const headUnit = pack && pack.qty !== 1 ? `<br><span class="muted">${esc(packLabel(pack))}</span>` : "";
+  return `
+    <h3 class="sub">${esc(dayLabel(d))}</h3>
+    ${d !== want ? `<p class="small genus-note">${esc(dayLabel(want))}에는 이 품목의 경매가 없어 가장 가까운 경매일의 시세를 보여 드립니다.</p>` : ""}
+    ${pack && pack.qty !== 1 ? `<p class="small genus-note">가격은 이 품목에서 가장 많이 거래된 포장인 <b>${esc(packLabel(pack).replace(/당$/, ""))}</b> 하나 기준이에요. 1${esc(pack.unit)}당 값도 함께 적었어요.</p>` : ""}
+    <h4 class="photo-head">전국 평균</h4>
+    <div class="table-wrap"><table class="price-table">
+      <thead><tr><th>등급</th><th>평균${headUnit}</th><th>대부분 거래 가격</th><th>거래량</th><th>1주 전보다${prevDay ? ` <span class="muted">(${esc(prevDay.slice(5).replace("-", "/"))})</span>` : ""}</th></tr></thead>
+      <tbody>${now.map(x => `<tr><td>${esc(x.grade)}</td><td class="mono">${priceCell(x.avg, x.unit)}</td><td class="mono">${rangeCell(x.lo, x.hi, x.unit)}</td><td class="mono">${amount(x.qty, x.unit)}</td><td class="mono">${change(x)}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <h4 class="photo-head">시장별 <span class="muted small">거래량이 많은 순</span></h4>
+    <div class="table-wrap"><table class="price-table market-table">
+      <thead><tr><th>시장</th><th>등급</th><th>평균${headUnit}</th><th>대부분 거래 가격</th><th>거래량</th><th>주 산지</th></tr></thead>
+      <tbody>${rows.slice(0, 10).map(row).join("")}</tbody>
+    </table></div>
+    ${rows.length > 10 ? `<details class="more-photos"><summary>${rows.length - 10}줄 더 보기</summary><div class="table-wrap"><table class="price-table market-table"><tbody>${rows.slice(10).map(row).join("")}</tbody></table></div></details>` : ""}
+    ${days[d].more ? `<p class="small muted">거래량이 적은 ${days[d].more}줄은 싣지 않았습니다 (전국 평균에는 모두 들어 있습니다).</p>` : ""}`;
+}
+function marketGo(d) {
+  document.getElementById("mkt-date").value = d;
+  document.getElementById("mkt-body").innerHTML = marketBody(d);
+}
+document.addEventListener("change", e => {
+  if (!MKT) return;
+  if (e.target.id === "mkt-item") {
+    MKT.item = +e.target.value;
+    marketGo(Object.keys(MKT.items[MKT.item].days).pop());
+  }
+  if (e.target.id === "mkt-date" && e.target.value) marketGo(e.target.value);
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-mstep]");
+  if (!b || !MKT) return;
+  const dates = Object.keys(MKT.items[MKT.item].days);
+  const cur = document.getElementById("mkt-date").value;
+  const next = +b.dataset.mstep < 0 ? [...dates].reverse().find(x => x < cur) : dates.find(x => x > cur);
+  if (next) marketGo(next);
+});
 
 // 재배 방식별 탭. 자료가 없는 방식도 탭은 보여 주고, 왜 없는지 알려 준다.
 const SMART_CROPS = ["토마토", "딸기", "파프리카"];

@@ -264,3 +264,27 @@ details.pest[open] > summary { background: var(--leaf-soft); }
   .row .side { text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+
+/* 시세 */
+.price-controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; margin: 6px 0 10px; }
+.price-controls input[type="date"], .price-controls select { font: inherit; font-size: 15px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+.price-step { display: flex; gap: 6px; }
+.btn-small { font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.btn-small:hover { border-color: var(--leaf); }
+.price-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.price-table th, .price-table td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.price-table th { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+.price-table td:nth-child(1), .price-table td:nth-child(2), .price-table td:nth-child(4), .price-table th { white-space: nowrap; }
+@media (max-width: 480px) {
+  .price-table { font-size: 13px; }
+  .price-table th, .price-table td { padding: 6px 4px; }
+}
+.price-table .up { color: #B3412F; font-weight: 600; }
+.price-table .down { color: #2F6FB3; font-weight: 600; }
+.table-wrap { overflow-x: auto; }
+.market-table td:nth-child(1), .market-table td:nth-child(2), .market-table td:nth-child(3), .market-table td:nth-child(5) { white-space: nowrap; }
+.one-item { font-size: 15px; font-weight: 600; padding: 6px 0; }
+@media (max-width: 480px) {
+  .price-table .rng { display: block; }
+  .price-table .small, .price-table .muted.small { font-size: 11px; }
+}
