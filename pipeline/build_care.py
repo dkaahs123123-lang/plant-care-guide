@@ -105,13 +105,22 @@ def pylist(value):
         return []
 
 
-def first_image(*lists):
-    for lst in lists:
+# 병해충 사진: 묶음마다 [묶음 이름, [[사진 주소, 설명], ...]]. 쪽이 무거워지지 않게 묶음마다 앞의 12장만 싣는다
+PHOTO_LIMIT = 12
+
+
+def ncpms_photos(groups):
+    out = []
+    for title, lst, url_key, caption_keys in groups:
+        photos = []
         for item in pylist(lst):
-            url = item.get("image") if isinstance(item, dict) else None
-            if url:
-                return url.replace("http://", "https://", 1)
-    return ""
+            url = item.get(url_key) if isinstance(item, dict) else None
+            if url and len(photos) < PHOTO_LIMIT:
+                caption = " · ".join(dict.fromkeys(clean(str(item.get(k))) for k in caption_keys if clean(str(item.get(k) or ""))))
+                photos.append([url.replace("http://", "https://", 1), caption])
+        if photos:
+            out.append([title, photos, len(pylist(lst))])
+    return out
 
 
 def read_tsv(path):
@@ -194,7 +203,8 @@ def ncpms_disease(d, crop):
         "chemical": clean(d.get("chemicalPrvnbeMth")),
         "biology": clean(d.get("biologyPrvnbeMth")),
         "pathogen": "; ".join(v.get("virusName", "") for v in pylist(d.get("virusList")) if isinstance(v, dict) and v.get("virusName")),
-        "img": first_image(d.get("imageList")),
+        "photos": ncpms_photos([("증상 사진", d.get("imageList"), "image", ("imageTitle", "iemSpchcknNm")),
+                                ("병원체 사진", d.get("virusImgList"), "image", ("imageTitle",))]),
     }
 
 
@@ -212,7 +222,9 @@ def ncpms_insect(d, crop):
         "chemical": clean(d.get("chemicalPrvnbeMth")),
         "biology": clean(d.get("biologyPrvnbeMth")),
         "distrib": clean(d.get("distrbInfo")),
-        "img": first_image(d.get("imageList"), d.get("spcsPhotoData")),
+        "photos": ncpms_photos([("피해 사진", d.get("imageList"), "image", ("imageTitle", "iemSpchcknCodeNm")),
+                                ("해충 사진", d.get("spcsPhotoData"), "image", ("priyClNm", "photoSj")),
+                                ("천적 곤충", d.get("enemyInsectList"), "enemyImage", ("enemyInsectSpeciesKor", "enemyInsectFamily"))]),
     }
 
 
