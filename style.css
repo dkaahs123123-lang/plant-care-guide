@@ -288,3 +288,18 @@ details.pest[open] > summary { background: var(--leaf-soft); }
   .price-table .rng { display: block; }
   .price-table .small, .price-table .muted.small { font-size: 11px; }
 }
+
+/* 시세 단추: 식물 이름 오른쪽 위 */
+.sheet-head.has-price { position: relative; }
+.sheet-head.has-price h1, .sheet-head.has-price .sci-line { padding-right: 110px; }
+#price-box { scroll-margin-top: 90px; }
+.price-toggle {
+  position: absolute; top: 0; right: 0; font: inherit; font-size: 15px; font-weight: 600; padding: 9px 16px; border-radius: 999px;
+  border: 1px solid var(--leaf); background: var(--panel); color: var(--leaf); cursor: pointer;
+}
+.price-toggle:hover, .price-toggle[aria-expanded="true"] { background: var(--leaf); color: var(--panel); }
+#price-box[hidden] { display: none; }
+@media (max-width: 480px) {
+  .sheet-head.has-price h1, .sheet-head.has-price .sci-line { padding-right: 92px; }
+  .price-toggle { font-size: 14px; padding: 7px 12px; }
+}

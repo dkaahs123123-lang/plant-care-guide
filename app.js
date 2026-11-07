@@ -961,7 +961,7 @@ async function renderCare(id, genus) {
   ];
   const pestSrc = own?.pests ? own : forGenus?.pests ? forGenus : null;
   box.innerHTML = [
-    `<div id="price-box"><div id="flower-price"></div><div id="market-price"></div></div>`,
+    `<div id="price-box" hidden><div id="flower-price"></div><div id="market-price"></div></div>`,
     methods.some(m => m[2]) || isCrop(CI[id]) ? methodTabs(methods, CI[id]) : (id ? `<section class="card pending"><h2>키우는 방법</h2><p>이 식물은 아직 재배 자료가 없습니다. 확인되지 않은 정보는 싣지 않습니다.</p></section>` : ""),
     own?.uses ? usesCard(own.uses, CI[id]?.name) : !id && forGenus?.uses ? usesCard(forGenus.uses, CI[`g:${genus}`]?.name) : "",
     pestSrc ? pestCard(pestSrc, genus, id) : (id && methods.some(m => m[2]) ? `<section class="card pending"><h2>병해충</h2><p>이 식물은 아직 공공기관의 병해충 자료가 없습니다.</p></section>` : ""),
@@ -971,9 +971,14 @@ async function renderCare(id, genus) {
 
   // 시세는 따로 불러와 키우는 방법 위에 넣는다. 종에 없으면 속 전체 시세를 안내와 함께 보여 준다
   const priceKey = id && CI[id]?.price ? id : CI[`g:${genus}`]?.price ? `g:${genus}` : null;
-  if (priceKey) loadPrice(priceKey, id && priceKey !== id ? genus : "");
+  // 시세는 길어서 처음에는 접어 두고, 식물 이름 오른쪽의 '시세' 단추를 눌렀을 때만 불러와 보여 준다
   const marketKey = id && CI[id]?.market ? id : CI[`g:${genus}`]?.market ? `g:${genus}` : null;
-  if (marketKey) loadMarket(marketKey, id && marketKey !== id ? genus : "");
+  const head = document.querySelector(".sheet-head");
+  if ((priceKey || marketKey) && head && !head.querySelector(".price-toggle")) {
+    head.classList.add("has-price");
+    head.insertAdjacentHTML("afterbegin", `<button type="button" class="price-toggle" aria-expanded="false" aria-controls="price-box"
+      data-price="${esc(priceKey || "")}" data-market="${esc(marketKey || "")}" data-genus="${esc(genus)}" data-id="${esc(id || "")}">시세 보기</button>`);
+  }
 
   // 증상 검색 결과에서 들어왔으면 그 병해충이나 사례를 펼쳐서 보여 준다
   if (OPEN_PEST) {
@@ -984,6 +989,24 @@ async function renderCare(id, genus) {
     if (d) { d.open = true; d.scrollIntoView({ block: "start" }); }
   }
 }
+
+// 시세 단추: 처음 누를 때 시세 자료를 불러오고, 다시 누르면 접는다
+document.addEventListener("click", async e => {
+  const b = e.target.closest(".price-toggle");
+  if (!b) return;
+  const box = document.getElementById("price-box");
+  if (!box) return;
+  const open = box.hidden;
+  box.hidden = !open;
+  b.setAttribute("aria-expanded", String(open));
+  b.textContent = open ? "시세 닫기" : "시세 보기";
+  if (open && !box.dataset.loaded) {
+    box.dataset.loaded = "1";
+    const { price, market, genus, id } = b.dataset;
+    await Promise.all([price && loadPrice(price, id && price !== id ? genus : ""), market && loadMarket(market, id && market !== id ? genus : "")]);
+  }
+  if (open) box.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 // ---------- 시세: 화훼공판장 경매가 ----------
 // 날짜를 고르면 그날의 등급별 경매가를 보여 준다. 경매가 없는 날(주말 등)을 고르면 바로 앞 경매일을 보여 준다.
