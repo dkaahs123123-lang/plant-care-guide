@@ -20,6 +20,17 @@ PY = [sys.executable, "-I"]
 SITE_URL = "https://dkaahs123123-lang.github.io/plant-care-guide/"
 
 
+def write_updated(today, daily):
+    """첫 화면에 보여 줄 갱신 날짜. 바뀐 내용을 올릴 때만 쓴다 (날짜만 바뀌어 매일 올라가지 않게)"""
+    path = ROOT / "site/data/updated.json"
+    info = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    info["daily" if daily else "weekly"] = str(today)
+    market = next((ROOT / "site/data/market").glob("*.json"), None)
+    if market:
+        info["market"] = json.loads(market.read_text(encoding="utf-8"))["to"]
+    path.write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
+
+
 def main(daily=False):
     today = datetime.date.today()
     log_dir = ROOT / "logs"
@@ -79,6 +90,8 @@ def main(daily=False):
     if git("diff", "--cached", "--quiet").returncode == 0:
         say("바뀐 내용이 없어 공개 사이트는 그대로 둡니다.")
         return 0
+    write_updated(today, daily)
+    git("add", "site/data/updated.json")
     git("commit", "-m", f"{'매일 시세' if daily else '주간 자료'} 갱신 {today}")
     push = git("push", "origin", "main")
     split = git("subtree", "split", "--prefix", "site", "main").stdout.strip()

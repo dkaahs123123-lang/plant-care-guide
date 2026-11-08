@@ -188,6 +188,7 @@ async function renderHome() {
       <h1>어떤 식물을 키우세요?</h1>
       <p>식물 이름을 검색하거나 아래에서 골라 보세요. 키우는 방법과 병해충 정보는 모두 공공기관 자료이고, 어디서 온 정보인지 함께 보여 드립니다.</p>
       <div class="quick">${QUICK.map(q => `<a href="#/s/${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>
+      <p class="small muted updated" id="updated"></p>
     </section>
     <div class="tiles">
       ${TILE_ORDER.map(cat => `
@@ -234,6 +235,11 @@ async function renderHome() {
       </div>
       <p class="small muted">학명과 분류: World Flora Online · 한국어 이름: 산림청, 한국수목원정원관리원, 농촌진흥청 · 키우는 방법: 국립원예특작과학원, 한국수목원정원관리원 · 병해충: 농촌진흥청 NCPMS · <a href="#/families">모든 과 보기</a></p>
     </section>`;
+  // 마지막 갱신: 공공기관 자료는 매주 일요일, 도매시장 시세는 매일 아침 자동으로 받는다
+  const up = await optional(getJSON("data/updated.json"));
+  const upBox = document.getElementById("updated");
+  const last = [up?.weekly, up?.daily].filter(Boolean).sort().pop();
+  if (upBox && last) upBox.innerHTML = `마지막 갱신 <b>${esc(dayLabel(last))}</b>${up.market ? ` · 도매시장 시세는 ${esc(dayLabel(up.market))} 경매까지` : ""}<br>공공기관 자료는 매주 일요일, 시세는 매일 아침 자동으로 새로 받습니다.`;
   const week = await optional(getJSON("data/week.json"));
   const box = document.getElementById("week-card");
   if (box && week?.weeks?.length) box.innerHTML = `
